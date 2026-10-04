@@ -1,0 +1,36 @@
+{
+  "name": "allergy-meal-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Voice-driven allergy-safe meal planner built on open-weight models + an open-source agent harness. Built for a friend.",
+  "scripts": {
+    "skills": "bun node_modules/skills/bin/cli.mjs",
+    "dev": "bun run src/server.ts",
+    "plan": "bun run src/cli.ts",
+    "plan:backboard": "bun run src/cli.ts --backboard",
+    "graph": "bun node_modules/skills/bin/cli.mjs graph --skills-dir skills",
+    "skills:validate": "bun node_modules/skills/bin/cli.mjs validate --skills-dir skills",
+    "skills:lint": "bun node_modules/skills/bin/cli.mjs lint skills",
+    "skills:sync": "bun node_modules/skills/bin/cli.mjs sync-deps --skills-dir skills",
+    "skills:lock": "bun node_modules/skills/bin/cli.mjs lock --skills-dir skills",
+    "skills:verify": "bun node_modules/skills/bin/cli.mjs verify --skills-dir skills",
+    "skills:graph": "bun node_modules/skills/bin/cli.mjs graph --skills-dir skills",
+    "postinstall": "node scripts/apply-patches.mjs",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^1.0.0",
+    "ai": "^5.0.0",
+    "backboard-sdk": "^1.5.19",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "skills": "^1.7.0",
+    "typescript": "^5.6.0"
+  }
+}
