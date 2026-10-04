@@ -25,6 +25,7 @@ export class AgentService {
     );
     return {
       text: final.reply ?? "",
+      summary: final.summary?.trim() || undefined,
       provider: this.config.provider,
       model: this.config.model,
       threadId: final.threadId,

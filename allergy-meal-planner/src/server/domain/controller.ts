@@ -29,6 +29,15 @@ const GATE_QUESTIONS = {
   },
 } as const;
 
+// The summariser writes only what the client should hear; the full report goes to the UI.
+const SUMMARIZE_PROMPT = [
+  "You write the SPOKEN SUMMARY of a nutritionist's reply.",
+  "The full report is shown on screen separately: do not repeat it.",
+  "Add only the highlights and any extra comments or caveats the client should hear.",
+  "Rules: 1-3 short sentences, plain spoken language, no markdown, no lists, no headings.",
+  "Never restate every meal. Reply with the summary text only.",
+].join("\n");
+
 function noul(answer: unknown): number | undefined {
   const value = answer as { type?: string; noul?: number };
   return value?.type === "noul" ? value.noul : undefined;
@@ -59,6 +68,7 @@ const Consultation = Annotation.Root({
   threadId: Annotation<string | undefined>(),
   note: Annotation<string | undefined>(),
   reply: Annotation<string>(),
+  summary: Annotation<string | undefined>(),
   revisions: Annotation<number>(),
   verdict: Annotation<PlanGate | undefined>(),
 });
@@ -114,6 +124,19 @@ export function buildController(deps: ControllerDeps) {
     revisions: (state.revisions ?? 0) + 1,
   });
 
+  // Only runs after the gate passes. A separate, memory-free turn keeps the consultation
+  // thread clean; the reply is returned as `summary` while the full text stays in `reply`.
+  const summarize = async (state: typeof Consultation.State) => {
+    const result = await deps.agent.chat({
+      system: SUMMARIZE_PROMPT,
+      user: state.reply,
+      provider: deps.config.provider,
+      model: deps.config.model,
+      memory: "off",
+    });
+    return { summary: result.text.trim() };
+  };
+
   // Branch: a wall of questions -> refine; a single question -> end; prose -> gate.
   const afterAct = (state: typeof Consultation.State): string => {
     const questions = questionCount(state.reply);
@@ -122,18 +145,24 @@ export function buildController(deps: ControllerDeps) {
     return deps.config.classifyMode === "off" ? END : "gate";
   };
 
-  const afterGate = (state: typeof Consultation.State): string =>
-    state.verdict?.status === "flagged" && (state.revisions ?? 0) < MAX_REVISIONS ? "revise" : END;
+  const afterGate = (state: typeof Consultation.State): string => {
+    const status = state.verdict?.status;
+    if (status === "flagged" && (state.revisions ?? 0) < MAX_REVISIONS) return "revise";
+    if (status === "pass" && deps.config.summarize) return "summarize";
+    return END;
+  };
 
   return new StateGraph(Consultation)
     .addNode("act", act)
     .addNode("refine", refine)
     .addNode("gate", gate)
     .addNode("revise", revise)
+    .addNode("summarize", summarize)
     .addEdge(START, "act")
     .addConditionalEdges("act", afterAct, ["refine", "gate", END])
     .addEdge("refine", "act")
-    .addConditionalEdges("gate", afterGate, ["revise", END])
+    .addConditionalEdges("gate", afterGate, ["revise", "summarize", END])
     .addEdge("revise", "act")
+    .addEdge("summarize", END)
     .compile();
 }

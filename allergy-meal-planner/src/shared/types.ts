@@ -11,6 +11,8 @@ export interface PlanGate {
 
 export interface PlanResult {
   text: string;
+  /** Short spoken summary (highlights + extra comments); the full report is `text`. */
+  summary?: string;
   provider: string;
   model: string;
   threadId?: string;

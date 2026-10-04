@@ -36,7 +36,8 @@ export function Planner() {
       setResult(response);
       setText("");
       setStatus("done");
-      if (autoSpeak && speech.canSpeak()) speech.speak(toPlainText(response.text));
+      const spoken = response.summary?.trim() || toPlainText(response.text);
+      if (autoSpeak && speech.canSpeak()) speech.speak(spoken);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "request failed");
       setStatus("failed");

@@ -64,6 +64,7 @@ const server = createServer(async (req, res) => {
         provider: active.provider,
         model: active.model,
         classify: config.classifyMode,
+        summarize: active.summarize,
         tracing: telemetry.tracing,
         profiling: telemetry.profiling,
         narration: Boolean(config.elevenLabsApiKey),

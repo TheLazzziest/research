@@ -46,6 +46,14 @@ export function PlanView({ result }: { result: PlanResult | null }) {
             ))}
           </div>
         ) : null}
+        {result.summary ? (
+          <div className="rounded-md border border-indigo-100 bg-indigo-50/60 p-3">
+            <Typography variant="small" color="indigo-gray" className="mb-1 font-semibold uppercase tracking-wide">
+              Summary
+            </Typography>
+            <Typography className="text-sm text-indigo-900">{result.summary}</Typography>
+          </div>
+        ) : null}
         <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-table:text-sm">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.text}</ReactMarkdown>
         </div>

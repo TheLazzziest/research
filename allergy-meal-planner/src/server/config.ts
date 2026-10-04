@@ -10,6 +10,8 @@ export interface AgentConfig {
   model: string;
   memory: string;
   classifyMode: ClassifyMode;
+  /** After the gate passes, add a short spoken summary alongside the full report. */
+  summarize: boolean;
 }
 
 // Open-weight model presets, served via Backboard's providers. `MODEL_PRESET` overrides
@@ -28,6 +30,7 @@ export const config = {
   backboardModel: env("BACKBOARD_MODEL", "openai/gpt-oss-120b"),
   memory: env("BACKBOARD_MEMORY", "Auto"),
   classifyMode: env("CLASSIFY", "gate") as ClassifyMode,
+  summarize: env("SUMMARIZE", "on") !== "off",
 
   // Observability (Sentry agent tracing). Strip quotes in case .env wraps the value.
   sentryDsn: (process.env.SENTRY_DSN ?? "").replace(/^["']|["']$/g, ""),
@@ -45,5 +48,6 @@ export function agentConfig(): AgentConfig {
     model: preset?.model ?? config.backboardModel,
     memory: config.memory,
     classifyMode: config.classifyMode,
+    summarize: config.summarize,
   };
 }
