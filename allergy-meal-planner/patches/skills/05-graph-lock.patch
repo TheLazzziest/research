@@ -1,0 +1,328 @@
+From 2a9aff368431bd36e26f1b48f88dda842f9f755b Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:03:04 +0300
+Subject: [PATCH] skills: 05-graph-lock
+
+---
+ dist/cli.mjs | 294 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 293 insertions(+), 1 deletion(-)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index e99ae0d..d7f686b 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -6947,7 +6947,291 @@ async function runSyncExternal(args) {
+ 		await runAdd([location], { agent: [agent], yes, skill: [name] });
+ 	}
+ 	console.log("sync: done");
+-}async function removeCommand(skillNames, options) {
++}// --- P0: graph closure, content-addressable integrity, unified lock, frozen verify ---
++function skillDirs(skillsDir) {
++	const root = resolve(skillsDir);
++	if (!existsSync(root)) return null;
++	return readdirSync(root, { withFileTypes: true })
++		.filter((e) => e.isDirectory())
++		.map((e) => e.name);
++}
++function readSkillVersion(dir) {
++	try {
++		const m = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
++		return typeof m.version === "string" ? m.version : null;
++	} catch {
++		return null;
++	}
++}
++function normalizeHash(v) {
++	return typeof v === "string" && v.startsWith("sha256:") ? v.slice("sha256:".length) : String(v ?? "");
++}
++function localSource(name) {
++	return `skills/${name}`;
++}
++function localAddress(name, hash) {
++	return `${localSource(name)}@sha256:${hash}`;
++}
++function externalAddress(node) {
++	return `git+${node.location}@${node.ref}#${node.name}@sha256:${node.hash}`;
++}
++// Resolve the graph: local `file:` edges (skills/) plus external `git:` deps (declared
++// pins, addressed but not fetched) and ignored `capability:` tool deps.
++function resolveSkillGraph(skillsDir) {
++	const root = resolve(skillsDir);
++	const names = skillDirs(skillsDir);
++	if (!names) return { error: `skills dir not found: ${root}` };
++	const edges = {};
++	const externals = {};
++	const depsOf = {};
++	const errors = [];
++	for (const name of names) {
++		const { deps, error } = readSkillDeps(join(root, name));
++		if (error) {
++			errors.push(`${name}: ${error}`);
++			edges[name] = [];
++			depsOf[name] = [];
++			continue;
++		}
++		const local = [];
++		const refs = [];
++		for (const dep of deps) {
++			const p = parseDepRef(dep);
++			if (p.error) {
++				errors.push(`${name}: '${dep}' -> ${p.error}`);
++				continue;
++			}
++			if (p.type === "file") {
++				if (!names.includes(p.name)) errors.push(`${name}: '${dep}' -> skill '${p.name}' not found`);
++				else {
++					local.push(p.name);
++					refs.push({ name: p.name, kind: "local" });
++				}
++			} else if (p.type === "git") {
++				externals[p.name] = { name: p.name, location: p.location, ref: p.version, hash: normalizeHash(p.version) };
++				refs.push({ name: p.name, kind: "external" });
++			}
++		}
++		edges[name] = local;
++		depsOf[name] = refs;
++	}
++	if (errors.length > 0) return { error: errors.join("\n") };
++	const depCount = Object.fromEntries(names.map((n) => [n, edges[n].length]));
++	const dependents = Object.fromEntries(names.map((n) => [n, []]));
++	for (const n of names) for (const d of edges[n]) dependents[d].push(n);
++	const queue = names.filter((n) => depCount[n] === 0).sort();
++	const order = [];
++	while (queue.length > 0) {
++		const n = queue.shift();
++		order.push(n);
++		for (const m of dependents[n]) {
++			depCount[m] -= 1;
++			if (depCount[m] === 0) {
++				queue.push(m);
++				queue.sort();
++			}
++		}
++	}
++	if (order.length !== names.length) return { error: "circular dependency detected" };
++	return { root, names, edges, depsOf, order, externals };
++}
++// Merkle over the local graph; external nodes are leaves pinned by their declared hash.
++async function hashSkillGraph(skillsDir, graph) {
++	const content = {};
++	const version = {};
++	for (const name of graph.names) {
++		content[name] = await computeSkillFolderHash(join(graph.root, name));
++		version[name] = readSkillVersion(join(graph.root, name));
++	}
++	const hash = {};
++	for (const ext of Object.values(graph.externals)) {
++		const h = createHash("sha256");
++		h.update(ext.name);
++		h.update("\0");
++		h.update(ext.ref ?? "");
++		h.update("\0");
++		h.update(ext.hash);
++		hash[ext.name] = h.digest("hex");
++	}
++	for (const name of graph.order) {
++		const h = createHash("sha256");
++		h.update(name);
++		h.update("\0");
++		h.update(version[name] ?? "");
++		h.update("\0");
++		h.update(content[name]);
++		h.update("\0");
++		for (const ref of [...graph.depsOf[name]].sort((a, b) => (a.name < b.name ? -1 : 1))) {
++			h.update(ref.name);
++			h.update("@");
++			h.update(hash[ref.name] ?? "");
++			h.update("\0");
++		}
++		hash[name] = h.digest("hex");
++	}
++	const dependents = new Set();
++	for (const n of graph.names) for (const d of graph.edges[n]) dependents.add(d);
++	const roots = graph.names.filter((n) => !dependents.has(n)).sort();
++	const graphHashInput = createHash("sha256");
++	for (const r of roots) {
++		graphHashInput.update(localAddress(r, hash[r]));
++		graphHashInput.update("\0");
++	}
++	const graphHash = graphHashInput.digest("hex");
++	const workspace = createHash("sha256");
++	workspace.update(graph.root);
++	workspace.update("\0");
++	workspace.update(graphHash);
++	return { content, version, hash, roots, graphHash, workspaceHash: workspace.digest("hex") };
++}
++function graphLockPath(skillsDir) {
++	return join(dirname(resolve(skillsDir)), LOCAL_LOCK_FILE);
++}
++async function readGraphLock(skillsDir) {
++	const lockFile = graphLockPath(skillsDir);
++	if (!existsSync(lockFile)) return { lockFile, raw: null, skills: null, graph: null };
++	try {
++		const raw = JSON.parse(await readFile(lockFile, "utf8"));
++		return { lockFile, raw, skills: raw?.skills ?? null, graph: raw?.graph ?? null };
++	} catch {
++		return { lockFile, raw: null, skills: null, graph: null };
++	}
++}
++async function writeGraphLock(skillsDir, graph, hashed) {
++	const lockFile = graphLockPath(skillsDir);
++	let raw = { version: 1, skills: {} };
++	if (existsSync(lockFile)) {
++		try {
++			raw = JSON.parse(await readFile(lockFile, "utf8"));
++		} catch {}
++	}
++	raw.version = typeof raw.version === "number" ? raw.version : 1;
++	// Preserve remote entries (github/gitlab/well-known) written by `skills add`; own local + git.
++	const skills = raw.skills && typeof raw.skills === "object" ? { ...raw.skills } : {};
++	for (const [key, value] of Object.entries(skills)) {
++		const owned = value?.sourceType === "local" || value?.sourceType === "git";
++		if (owned && !graph.names.includes(key) && !(key in graph.externals)) delete skills[key];
++	}
++	for (const name of graph.names) {
++		delete skills[name];
++		skills[name] = {
++			source: localSource(name),
++			sourceType: "local",
++			skillPath: `${localSource(name)}/SKILL.md`,
++			computedHash: hashed.content[name],
++			version: hashed.version[name] ?? null,
++			hash: hashed.hash[name],
++			deps: [...graph.depsOf[name]]
++				.sort((a, b) => (a.name < b.name ? -1 : 1))
++				.map((ref) => (ref.kind === "external" ? externalAddress(graph.externals[ref.name]) : localAddress(ref.name, hashed.hash[ref.name]))),
++		};
++	}
++	for (const ext of Object.values(graph.externals)) {
++		delete skills[ext.name];
++		skills[ext.name] = {
++			source: ext.location,
++			sourceType: "git",
++			skillPath: null,
++			ref: ext.ref ?? null,
++			computedHash: ext.hash,
++			hash: hashed.hash[ext.name],
++		};
++	}
++	raw.skills = skills;
++	raw.graph = {
++		version: 3,
++		addressable: "sha256-merkle",
++		graphHash: hashed.graphHash,
++		workspaceHash: hashed.workspaceHash,
++	};
++	await writeFile(lockFile, JSON.stringify(raw, null, 2) + "\n", "utf8");
++	return lockFile;
++}
++async function verifyAgainstLock(skillsDir, graph, hashed, options) {
++	const { lockFile, skills: locked, graph: lockGraph } = await readGraphLock(skillsDir);
++	if (!lockGraph) {
++		console.log(`${import_picocolors.default.red("✗")} no graph lock at ${relative(process.cwd(), lockFile)} — run \`skills lock\``);
++		process.exitCode = 3;
++		return;
++	}
++	const drift = [];
++	if (lockGraph.graphHash !== hashed.graphHash) drift.push(`graphHash ${String(lockGraph.graphHash).slice(0, 12)} -> ${hashed.graphHash.slice(0, 12)}`);
++	if (lockGraph.workspaceHash !== hashed.workspaceHash) drift.push("workspaceHash changed");
++	for (const name of graph.names) {
++		const entry = locked?.[name];
++		if (!entry) {
++			drift.push(`${name}: added`);
++			continue;
++		}
++		if (entry.version !== (hashed.version[name] ?? null)) drift.push(`${name}: version ${entry.version ?? "(none)"} -> ${hashed.version[name] ?? "(none)"}`);
++		if (entry.source !== localSource(name)) drift.push(`${name}: source ${entry.source ?? "(none)"} -> ${localSource(name)}`);
++		if (entry.computedHash !== hashed.content[name]) drift.push(`${name}: content ${String(entry.computedHash).slice(0, 12)} -> ${hashed.content[name].slice(0, 12)}`);
++		if (entry.hash !== hashed.hash[name]) drift.push(`${name}: hash ${String(entry.hash).slice(0, 12)} -> ${hashed.hash[name].slice(0, 12)}`);
++		const currentDeps = [...graph.depsOf[name]]
++			.sort((a, b) => (a.name < b.name ? -1 : 1))
++			.map((ref) => (ref.kind === "external" ? externalAddress(graph.externals[ref.name]) : localAddress(ref.name, hashed.hash[ref.name])));
++		if (JSON.stringify(entry.deps ?? []) !== JSON.stringify(currentDeps)) drift.push(`${name}: deps changed`);
++	}
++	for (const name of Object.keys(locked ?? {})) {
++		const st = locked[name]?.sourceType;
++		if ((st === "local" || st === "git") && !graph.names.includes(name) && !(name in graph.externals)) drift.push(`${name}: removed`);
++	}
++	if (drift.length > 0) {
++		if (options.json) console.log(JSON.stringify({ ok: false, drift }, null, 2));
++		else {
++			console.log(`${import_picocolors.default.red("✗")} lock drift (${drift.length})`);
++			for (const d of drift) console.log(`  ${d}`);
++		}
++		process.exitCode = 2;
++		return;
++	}
++	if (options.json) console.log(JSON.stringify({ ok: true, graphHash: hashed.graphHash }, null, 2));
++	else console.log(`${import_picocolors.default.green("✓")} graph matches lock: ${graph.names.length} local + ${Object.keys(graph.externals).length} remote, graph ${hashed.graphHash.slice(0, 12)}`);
++}
++function parseGraphArgs(args) {
++	let skillsDir = "skills";
++	let frozen = false;
++	let json = false;
++	for (let i = 0; i < args.length; i++) {
++		if (args[i] === "--skills-dir") skillsDir = args[++i] ?? "skills";
++		else if (args[i] === "--frozen" || args[i] === "--locked") frozen = true;
++		else if (args[i] === "--json") json = true;
++	}
++	return { skillsDir, frozen, json };
++}
++async function runLock(args) {
++	const { skillsDir, frozen, json } = parseGraphArgs(args);
++	const graph = resolveSkillGraph(skillsDir);
++	if (graph.error) {
++		console.log(`${import_picocolors.default.red("✗")} ${graph.error}`);
++		process.exitCode = 1;
++		return;
++	}
++	const hashed = await hashSkillGraph(skillsDir, graph);
++	if (frozen) {
++		await verifyAgainstLock(skillsDir, graph, hashed, { json });
++		return;
++	}
++	const lockFile = await writeGraphLock(skillsDir, graph, hashed);
++	if (json) {
++		console.log(JSON.stringify({ skillsDir, order: graph.order, graphHash: hashed.graphHash }, null, 2));
++	} else {
++		console.log(`${import_picocolors.default.green("✓")} locked ${graph.names.length} local + ${Object.keys(graph.externals).length} remote skill(s) -> ${relative(process.cwd(), lockFile)}`);
++		console.log(`${import_picocolors.default.dim("graph:")} ${hashed.graphHash.slice(0, 12)}`);
++	}
++}
++async function runVerify(args) {
++	const { skillsDir, json } = parseGraphArgs(args);
++	const graph = resolveSkillGraph(skillsDir);
++	if (graph.error) {
++		console.log(`${import_picocolors.default.red("✗")} ${graph.error}`);
++		process.exitCode = 1;
++		return;
++	}
++	const hashed = await hashSkillGraph(skillsDir, graph);
++	await verifyAgainstLock(skillsDir, graph, hashed, { json });
++}
++async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+ 		options.yes = true;
+@@ -8379,6 +8663,8 @@ ${BOLD}Update Options:${RESET}
+ 
+ ${BOLD}Project:${RESET}
+   experimental_install Restore skills from skills-lock.json
++  lock                 Resolve the skill graph, hash it, write the lock
++  verify               Verify the graph against the lock (CI gate)
+   lint [dir]           Validate SKILL.md frontmatter in a directory (default: skills)
+   validate             Validate skill dep graph (scheme, file: existence, cycles)
+   init [name]          Initialize a skill (creates <name>/SKILL.md or ./SKILL.md)
+@@ -8606,6 +8892,12 @@ async function main() {
+ 		case "check-skill":
+ 			await runLint(restArgs);
+ 			break;
++		case "lock":
++			await runLock(restArgs);
++			break;
++		case "verify":
++			await runVerify(restArgs);
++			break;
+ 		case "list":
+ 		case "ls":
+ 			await runList(restArgs);

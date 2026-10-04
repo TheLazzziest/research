@@ -1,0 +1,371 @@
+From a8dc9a3f196e3a06a57a556c7e9d9bc72558d5a1 Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:29:17 +0300
+Subject: [PATCH] skills: 07-graph
+
+---
+ dist/cli.mjs | 337 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 337 insertions(+)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index 55910ee..58ac737 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -7443,6 +7443,331 @@ async function runPackageLint(args) {
+ 	}
+ 	console.log(`\n${names.length} skill(s): ${import_picocolors.default.green(String(ok))} ok, ${warnings.length} warning(s)`);
+ }
++// --- P1: graph introspection (Tarjan SCC, render, why, impact, orphans) ---
++function collectGraph(skillsDir) {
++	const root = resolve(skillsDir);
++	const names = readdirSync(root, { withFileTypes: true })
++		.filter((e) => e.isDirectory())
++		.map((e) => e.name);
++	const nodes = new Map(names.map((n) => [n, "skill"]));
++	const sources = new Map();
++	const edges = [];
++	const errors = [];
++	for (const name of names) {
++		try {
++			const mf = JSON.parse(readFileSync(join(root, name, "manifest.json"), "utf8"));
++			if (typeof mf.source === "string") sources.set(name, mf.source);
++		} catch {}
++		const { deps, error } = readSkillDeps(join(root, name));
++		if (error) {
++			errors.push(`${name}: ${error}`);
++			continue;
++		}
++		for (const dep of deps) {
++			const p = parseDepRef(dep);
++			if (p.error) {
++				errors.push(`${name}: '${dep}' -> ${p.error}`);
++				continue;
++			}
++			if (p.type === "file") {
++				if (!names.includes(p.name)) errors.push(`${name}: '${dep}' -> skill '${p.name}' not found`);
++				else edges.push({ from: name, to: p.name, type: "skill" });
++			} else if (p.type === "git") {
++				if (!nodes.has(p.name)) nodes.set(p.name, "remote");
++				edges.push({ from: name, to: p.name, type: "remote" });
++			} else if (p.type === "capability") {
++				if (!nodes.has(p.name)) nodes.set(p.name, "tool");
++				edges.push({ from: name, to: p.name, type: "tool" });
++			}
++		}
++	}
++	return { root, nodes, sources, edges, errors };
++}
++function graphNeighbors(graph, node) {
++	return graph.edges.filter((e) => e.from === node).map((e) => e.to);
++}
++// Tarjan's strongly-connected components. Condensing SCCs yields a DAG of clusters,
++// which is what multi-factor evaluation needs: a load/eval order and cycle clusters.
++function tarjanScc(nodes, neighbors) {
++	const index = new Map();
++	const low = new Map();
++	const onStack = new Set();
++	const stack = [];
++	const sccs = [];
++	let next = 0;
++	function connect(v) {
++		index.set(v, next);
++		low.set(v, next);
++		next += 1;
++		stack.push(v);
++		onStack.add(v);
++		for (const w of neighbors(v)) {
++			if (!index.has(w)) {
++				connect(w);
++				low.set(v, Math.min(low.get(v), low.get(w)));
++			} else if (onStack.has(w)) {
++				low.set(v, Math.min(low.get(v), index.get(w)));
++			}
++		}
++		if (low.get(v) === index.get(v)) {
++			const component = [];
++			let w;
++			do {
++				w = stack.pop();
++				onStack.delete(w);
++				component.push(w);
++			} while (w !== v);
++			sccs.push(component);
++		}
++	}
++	for (const v of nodes) if (!index.has(v)) connect(v);
++	return sccs;
++}
++function graphSccs(graph) {
++	const skills = [...graph.nodes.keys()].filter((n) => graph.nodes.get(n) === "skill");
++	return tarjanScc(skills, (n) => graphNeighbors(graph, n));
++}
++function graphRoots(graph) {
++	const incoming = new Map([...graph.nodes.keys()].map((k) => [k, 0]));
++	for (const e of graph.edges) incoming.set(e.to, (incoming.get(e.to) ?? 0) + 1);
++	return [...graph.nodes.keys()].filter((k) => (incoming.get(k) ?? 0) === 0);
++}
++function graphReachable(graph, from) {
++	const seen = new Set(from);
++	const queue = [...from];
++	while (queue.length > 0) {
++		const v = queue.shift();
++		for (const e of graph.edges) {
++			if (e.from === v && !seen.has(e.to)) {
++				seen.add(e.to);
++				queue.push(e.to);
++			}
++		}
++	}
++	return seen;
++}
++function graphId(name) {
++	return name.replace(/[^A-Za-z0-9]/g, "_");
++}
++function renderGraph(graph, format) {
++	const entries = [...graph.nodes.entries()];
++	if (format === "json") {
++		console.log(JSON.stringify({ nodes: entries.map(([name, type]) => ({ name, type, source: graph.sources.get(name) ?? null })), edges: graph.edges }, null, 2));
++		return;
++	}
++	if (format === "dot") {
++		console.log("digraph skills {");
++		console.log("  rankdir=LR;");
++		for (const [name, type] of entries) console.log(`  "${name}" [shape=${type === "skill" ? "box" : "ellipse"}];`);
++		for (const e of graph.edges) console.log(`  "${e.from}" -> "${e.to}" [style=${e.type === "skill" ? "solid" : "dashed"}];`);
++		console.log("}");
++	} else {
++		console.log("```mermaid");
++		console.log("graph LR");
++		for (const [name, type] of entries) console.log(type === "skill" ? `  ${graphId(name)}["${name}"]` : `  ${graphId(name)}(["${name}"])`);
++		for (const e of graph.edges) console.log(`  ${graphId(e.from)} --> ${graphId(e.to)}`);
++		console.log("```");
++	}
++	const sccs = graphSccs(graph);
++	const cycles = sccs.filter((c) => c.length > 1);
++	const reachable = graphReachable(graph, graphRoots(graph));
++	const orphans = entries.filter(([n, t]) => t === "skill" && !reachable.has(n)).map(([n]) => n);
++	console.log(`\nnodes=${graph.nodes.size} edges=${graph.edges.length} sccs=${sccs.length} cycles=${cycles.length}`);
++	for (const c of cycles) console.log(`${import_picocolors.default.red("cycle")}: ${c.join(" <-> ")}`);
++	if (orphans.length > 0) console.log(`${import_picocolors.default.yellow("orphans")}: ${orphans.join(", ")}`);
++}
++// Typed edges from the dependency graph (manifest): local skills vs pinned remotes.
++function typedEdges(skillsDir) {
++	const root = resolve(skillsDir);
++	const edges = [];
++	for (const entry of readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory())) {
++		const mfPath = join(root, entry.name, "manifest.json");
++		if (!existsSync(mfPath)) continue;
++		let mf;
++		try {
++			mf = JSON.parse(readFileSync(mfPath, "utf8"));
++		} catch {
++			continue;
++		}
++		for (const d of Array.isArray(mf.dependencies) ? mf.dependencies : []) {
++			if (!d || typeof d.name !== "string") continue;
++			if (typeof d.repo === "string") {
++				edges.push({ from: entry.name, to: d.name, type: "remote", source: `${d.repo}@${String(d.ref ?? d.version ?? "").slice(0, 12)}` });
++			} else {
++				edges.push({ from: entry.name, to: d.name, type: "skill", source: d.path ?? `skills/${d.name}` });
++			}
++		}
++	}
++	return edges;
++}
++function lineageAdjacency(edges, reverse) {
++	const adj = new Map();
++	for (const e of edges) {
++		const a = reverse ? e.to : e.from;
++		const b = reverse ? e.from : e.to;
++		if (!adj.has(a)) adj.set(a, []);
++		adj.get(a).push({ to: b, edge: e });
++	}
++	return adj;
++}
++function shortestLineage(adj, from, to) {
++	const prev = new Map([[from, null]]);
++	const queue = [from];
++	while (queue.length > 0) {
++		const v = queue.shift();
++		if (v === to) break;
++		for (const { to: w, edge } of adj.get(v) ?? []) {
++			if (!prev.has(w)) {
++				prev.set(w, { v, edge });
++				queue.push(w);
++			}
++		}
++	}
++	if (!prev.has(to)) return null;
++	const steps = [];
++	let cur = to;
++	while (true) {
++		const p = prev.get(cur);
++		if (!p) break;
++		steps.unshift({ from: p.v, to: cur, edge: p.edge });
++		cur = p.v;
++	}
++	return steps;
++}
++function allLineage(adj, from, to, cap = 50) {
++	const results = [];
++	const onPath = new Set([from]);
++	function dfs(v, steps) {
++		if (results.length >= cap) return;
++		if (v === to) {
++			if (steps.length > 0) results.push([...steps]);
++			return;
++		}
++		for (const { to: w, edge } of adj.get(v) ?? []) {
++			if (onPath.has(w)) continue;
++			onPath.add(w);
++			steps.push({ from: v, to: w, edge });
++			dfs(w, steps);
++			steps.pop();
++			onPath.delete(w);
++		}
++	}
++	dfs(from, []);
++	return results;
++}
++function annotateLineage(steps) {
++	if (steps.length === 0) return "";
++	let out = steps[0].from;
++	for (const s of steps) {
++		const detail = s.edge.type === "remote" && s.edge.source ? `: ${s.edge.source}` : "";
++		out += ` -[${s.edge.type}${detail}]-> ${s.to}`;
++	}
++	return out;
++}
++function graphDependents(graph, node) {
++	const reverse = new Map([...graph.nodes.keys()].map((k) => [k, []]));
++	for (const e of graph.edges) reverse.get(e.to)?.push(e.from);
++	const seen = new Set([node]);
++	const queue = [node];
++	const order = [];
++	while (queue.length > 0) {
++		const v = queue.shift();
++		for (const w of reverse.get(v) ?? []) {
++			if (!seen.has(w)) {
++				seen.add(w);
++				queue.push(w);
++				order.push(w);
++			}
++		}
++	}
++	return order;
++}
++function parseGraphViewArgs(args) {
++	let skillsDir = "skills";
++	const rest = [];
++	for (let i = 0; i < args.length; i++) {
++		if (args[i] === "--skills-dir") skillsDir = args[++i] ?? "skills";
++		else rest.push(args[i]);
++	}
++	return { skillsDir, rest };
++}
++async function runGraph(args) {
++	let format = "mermaid";
++	const rest = [];
++	for (let i = 0; i < args.length; i++) {
++		if (args[i] === "--json") format = "json";
++		else if (args[i] === "--dot") format = "dot";
++		else if (args[i] === "--mermaid") format = "mermaid";
++		else rest.push(args[i]);
++	}
++	const { skillsDir } = parseGraphViewArgs(rest);
++	const graph = collectGraph(skillsDir);
++	if (graph.errors.length > 0) {
++		for (const e of graph.errors) console.log(`${import_picocolors.default.red("✗")} ${e}`);
++		process.exitCode = 1;
++		return;
++	}
++	renderGraph(graph, format);
++}
++async function runLineage(args) {
++	let skillsDir = "skills";
++	let reverse = false;
++	let all = false;
++	let json = false;
++	const rest = [];
++	for (let i = 0; i < args.length; i++) {
++		const a = args[i];
++		if (a === "--skills-dir") skillsDir = args[++i] ?? "skills";
++		else if (a === "--reverse") reverse = true;
++		else if (a === "--all") all = true;
++		else if (a === "--json") json = true;
++		else rest.push(a);
++	}
++	const [from, to] = rest;
++	if (!from || !to) {
++		console.log(`${import_picocolors.default.red("✗")} usage: skills lineage <from> <to> [--all] [--reverse] [--json] [--skills-dir <dir>]`);
++		process.exitCode = 1;
++		return;
++	}
++	const adj = lineageAdjacency(typedEdges(skillsDir), reverse);
++	const shortest = shortestLineage(adj, from, to);
++	const paths = all ? allLineage(adj, from, to) : shortest ? [shortest] : [];
++	if (paths.length === 0) {
++		console.log(`${import_picocolors.default.red("✗")} no lineage ${from} ${reverse ? "<-" : "->"} ${to}`);
++		process.exitCode = 1;
++		return;
++	}
++	if (json) {
++		console.log(
++			JSON.stringify(
++				{ from, to, reverse, paths: paths.map((p) => p.map((s) => ({ from: s.from, to: s.to, type: s.edge.type, source: s.edge.source }))) },
++				null,
++				2,
++			),
++		);
++		return;
++	}
++	for (const path of paths) console.log(annotateLineage(path));
++	if (all) console.log(`${import_picocolors.default.dim(`${paths.length} path(s)`)}`);
++}
++async function runImpact(args) {
++	const { skillsDir, rest } = parseGraphViewArgs(args);
++	const node = rest[0];
++	if (!node) {
++		console.log(`${import_picocolors.default.red("✗")} usage: skills impact <node> [--skills-dir <dir>]`);
++		process.exitCode = 1;
++		return;
++	}
++	const graph = collectGraph(skillsDir);
++	if (!graph.nodes.has(node)) {
++		console.log(`${import_picocolors.default.red("✗")} unknown node: ${node}`);
++		process.exitCode = 1;
++		return;
++	}
++	const dependents = graphDependents(graph, node).sort();
++	console.log(`${dependents.length} skill(s) depend (transitively) on ${node}:`);
++	for (const d of dependents) console.log(`  ${d}`);
++}
+ async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+@@ -8875,6 +9200,9 @@ ${BOLD}Update Options:${RESET}
+ 
+ ${BOLD}Project:${RESET}
+   experimental_install Restore skills from skills-lock.json
++  graph [--mermaid|--dot|--json]  Render the skill graph (SCCs via Tarjan)
++  lineage <a> <b>      Show the dependency lineage with edge types (--all, --reverse, --json)
++  impact <node>        List skills that depend on <node>
+   lock                 Resolve the skill graph, hash it, write the lock
+   verify               Verify the graph against the lock (CI gate)
+   lint [dir]           Validate skill packages: frontmatter, manifest, version (default: skills)
+@@ -9110,6 +9438,15 @@ async function main() {
+ 		case "verify":
+ 			await runVerify(restArgs);
+ 			break;
++		case "graph":
++			await runGraph(restArgs);
++			break;
++		case "lineage":
++			await runLineage(restArgs);
++			break;
++		case "impact":
++			await runImpact(restArgs);
++			break;
+ 		case "list":
+ 		case "ls":
+ 			await runList(restArgs);

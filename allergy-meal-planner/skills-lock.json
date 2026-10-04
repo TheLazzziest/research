@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "skills": {
+    "export-recipe": {
+      "source": "skills/export-recipe",
+      "sourceType": "local",
+      "skillPath": "skills/export-recipe/SKILL.md",
+      "computedHash": "cc6fdcb045378fff9f798d3970adfb005625bb773b2244f118bede75f51d3377",
+      "version": "0.1.0",
+      "hash": "cdf65585f2ed5d5903fd11d408adf5cc4561c2c2e3e53062443db41ffb9ef248",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "validate-recipes": {
+      "source": "skills/validate-recipes",
+      "sourceType": "local",
+      "skillPath": "skills/validate-recipes/SKILL.md",
+      "computedHash": "e34debd57da456e4d76764491ee8816e6748ee4ae34e9287babb10cba0969fa2",
+      "version": "0.1.0",
+      "hash": "6008d33243eb5672625d186103cab0558f693c1266b5521450c961c04b2427d9",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "organize-collection": {
+      "source": "skills/organize-collection",
+      "sourceType": "local",
+      "skillPath": "skills/organize-collection/SKILL.md",
+      "computedHash": "06a11fc9fc15d4d017d23772f43fc5c2b301128e3d39e143308949c294e89263",
+      "version": "0.1.0",
+      "hash": "3b1c5b0c1ecd6ab378fc11dff2e01e845180d2a8c6f06f9150ca4414ca6f34e0",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "skills/validate-recipes@sha256:6008d33243eb5672625d186103cab0558f693c1266b5521450c961c04b2427d9",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "meal-plan": {
+      "source": "skills/meal-plan",
+      "sourceType": "local",
+      "skillPath": "skills/meal-plan/SKILL.md",
+      "computedHash": "1b306258d1072cd408e0dff669004ba7d38b7715210c1c60e8ee5e84cd13a089",
+      "version": "0.1.0",
+      "hash": "9dd465d88dbd1ddd79b349e4619adc41adcca2e3603e7a7d6ace4a919d36be7d",
+      "deps": [
+        "skills/create-recipe@sha256:b449bf371c66f423670f819745426ca55ef3cc3d930702b22dfa2ba4d499741d",
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "skills/scale-recipe@sha256:55b4659d967ff7aa3ffd37bc452a2d7e7c7e1f319e51a9bc43933edd1cc14a88",
+        "skills/search-recipes@sha256:6146ce3649449e439349a17b4ee1acfde995fbd299c2fa24450517d829883817",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "search-recipes": {
+      "source": "skills/search-recipes",
+      "sourceType": "local",
+      "skillPath": "skills/search-recipes/SKILL.md",
+      "computedHash": "c713b49c1f15c9ca3d65fa8e1e7a8c6aa1c207c0edcb666c8f9a5caf9fcd7624",
+      "version": "0.1.0",
+      "hash": "6146ce3649449e439349a17b4ee1acfde995fbd299c2fa24450517d829883817",
+      "deps": [
+        "skills/convert-recipe@sha256:55b2d8d4092c85910dc58318f19709ece7ca6d8342a175e2dee3e9507be5c4ff",
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "create-recipe": {
+      "source": "skills/create-recipe",
+      "sourceType": "local",
+      "skillPath": "skills/create-recipe/SKILL.md",
+      "computedHash": "bbeaab9ed1814d69deea25801e6bcb941ff1ac9a52e1e03f1194f787d6454093",
+      "version": "0.1.0",
+      "hash": "b449bf371c66f423670f819745426ca55ef3cc3d930702b22dfa2ba4d499741d",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "skills/organize-collection@sha256:3b1c5b0c1ecd6ab378fc11dff2e01e845180d2a8c6f06f9150ca4414ca6f34e0",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "skills/validate-recipes@sha256:6008d33243eb5672625d186103cab0558f693c1266b5521450c961c04b2427d9",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "convert-recipe": {
+      "source": "skills/convert-recipe",
+      "sourceType": "local",
+      "skillPath": "skills/convert-recipe/SKILL.md",
+      "computedHash": "cff807450d22e12a4fa1b2feb2dbf8c560e0629d67de9ee1371ce0051e194b02",
+      "version": "0.1.0",
+      "hash": "55b2d8d4092c85910dc58318f19709ece7ca6d8342a175e2dee3e9507be5c4ff",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "skills/validate-recipes@sha256:6008d33243eb5672625d186103cab0558f693c1266b5521450c961c04b2427d9",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "shopping-list": {
+      "source": "skills/shopping-list",
+      "sourceType": "local",
+      "skillPath": "skills/shopping-list/SKILL.md",
+      "computedHash": "712ad3a1562443c85ef0294ff9bc1851683d9ec111858689b32a878c67c08e2b",
+      "version": "0.1.0",
+      "hash": "5a8e42af126019589bac5aa5c784c574c3c6010a05a9df387ec585c9ba448c54",
+      "deps": [
+        "skills/export-recipe@sha256:cdf65585f2ed5d5903fd11d408adf5cc4561c2c2e3e53062443db41ffb9ef248",
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "skills/scale-recipe@sha256:55b4659d967ff7aa3ffd37bc452a2d7e7c7e1f319e51a9bc43933edd1cc14a88",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "scale-recipe": {
+      "source": "skills/scale-recipe",
+      "sourceType": "local",
+      "skillPath": "skills/scale-recipe/SKILL.md",
+      "computedHash": "f6f25943da71ff03d334ce987f830861f0aa3dd3e93f755f8dcc5ea24e0dbf6f",
+      "version": "0.1.0",
+      "hash": "55b4659d967ff7aa3ffd37bc452a2d7e7c7e1f319e51a9bc43933edd1cc14a88",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "allergy-safe-meal-planning": {
+      "source": "skills/allergy-safe-meal-planning",
+      "sourceType": "local",
+      "skillPath": "skills/allergy-safe-meal-planning/SKILL.md",
+      "computedHash": "02dec778fd43513411d416cf0c5a042f91dcb412f1180528f0f5ea1ba2dee97b",
+      "version": "0.3.0",
+      "hash": "1378901e4d5cadfb7df89f7323a665aa08f0e76c58e5d7ecdbda1186cac5c8ad",
+      "deps": [
+        "skills/allergen-screening@sha256:5411fc4d7c58b0febcb2361629adc25e74c38b08d5026332d88d6ae0eae1878e",
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "skills/manage-pantry@sha256:3342c2e10818afe54af8fb426c639011866f77aabd375e6aeacf77f1c8f049b8",
+        "skills/meal-plan@sha256:9dd465d88dbd1ddd79b349e4619adc41adcca2e3603e7a7d6ace4a919d36be7d",
+        "skills/shopping-list@sha256:5a8e42af126019589bac5aa5c784c574c3c6010a05a9df387ec585c9ba448c54",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "allergen-screening": {
+      "source": "skills/allergen-screening",
+      "sourceType": "local",
+      "skillPath": "skills/allergen-screening/SKILL.md",
+      "computedHash": "d79b423188fdc0780de60c053f66dbd4c619c3852afc1d35f7ae904401e5ce28",
+      "version": "0.1.0",
+      "hash": "5411fc4d7c58b0febcb2361629adc25e74c38b08d5026332d88d6ae0eae1878e",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "manage-pantry": {
+      "source": "skills/manage-pantry",
+      "sourceType": "local",
+      "skillPath": "skills/manage-pantry/SKILL.md",
+      "computedHash": "8a4a64c0863dda4284bbc9fed7b7e8d7ef9bb4a2216aaa7d9f058251912e846c",
+      "version": "0.1.0",
+      "hash": "3342c2e10818afe54af8fb426c639011866f77aabd375e6aeacf77f1c8f049b8",
+      "deps": [
+        "git+github.com/mattpocock/skills@4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14#grilling@sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+        "git+github.com/mattpocock/skills@b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206#teach@sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+        "git+github.com/mattpocock/skills@befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1#to-questionnaire@sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+        "git+github.com/mattpocock/skills@1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403#wait-what@sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+        "git+github.com/mattpocock/skills@95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f#writing-for-agents@sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+      ]
+    },
+    "grilling": {
+      "source": "github.com/mattpocock/skills",
+      "sourceType": "git",
+      "skillPath": null,
+      "ref": "4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+      "computedHash": "4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+      "hash": "f2e4ed1d84c1ef48d1bbdfce4577634b89d63135afc92ac2144e72f890c32891"
+    },
+    "teach": {
+      "source": "github.com/mattpocock/skills",
+      "sourceType": "git",
+      "skillPath": null,
+      "ref": "b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+      "computedHash": "b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+      "hash": "1478aeb17137c063b6a053ccf95b4b99f8acee03f7c61ccedf23b10f9eac7520"
+    },
+    "to-questionnaire": {
+      "source": "github.com/mattpocock/skills",
+      "sourceType": "git",
+      "skillPath": null,
+      "ref": "befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+      "computedHash": "befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+      "hash": "1d0c77ecd361167f7135addb9ebef92a980dd6b4e29461031c1c8b1aa97b7f16"
+    },
+    "wait-what": {
+      "source": "github.com/mattpocock/skills",
+      "sourceType": "git",
+      "skillPath": null,
+      "ref": "1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+      "computedHash": "1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+      "hash": "8ec1c32b792e6b76f9be9fcac0b959cee504fab460d143cba68e70b9ed007f58"
+    },
+    "writing-for-agents": {
+      "source": "github.com/mattpocock/skills",
+      "sourceType": "git",
+      "skillPath": null,
+      "ref": "95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f",
+      "computedHash": "95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f",
+      "hash": "4634af67da4124d07e37fb7afde127ff9c03bd068635c70b47f7096a69f88f29"
+    }
+  },
+  "graph": {
+    "version": 3,
+    "addressable": "sha256-merkle",
+    "graphHash": "ff30e3d7c38c7bc4299c9f745a27d3c3ec3ccb000bd3d36ef6976eeacad68fd2",
+    "workspaceHash": "0c5db218f30d91082f2cb4452bbaecd658850576d204ce4be7522137bf2b8af5"
+  }
+}

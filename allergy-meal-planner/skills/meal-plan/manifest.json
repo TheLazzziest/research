@@ -1,0 +1,81 @@
+{
+  "$schema": "../../manifest.schema.json",
+  "name": "meal-plan",
+  "version": "0.1.0",
+  "tags": [
+    "cooklang",
+    "food"
+  ],
+  "dependencies": [
+    {
+      "name": "search-recipes",
+      "type": "skill",
+      "path": "skills/search-recipes",
+      "version": "0.1.0"
+    },
+    {
+      "name": "scale-recipe",
+      "type": "skill",
+      "path": "skills/scale-recipe",
+      "version": "0.1.0"
+    },
+    {
+      "name": "create-recipe",
+      "type": "skill",
+      "path": "skills/create-recipe",
+      "version": "0.1.0"
+    },
+    {
+      "name": "grilling",
+      "type": "skill",
+      "repo": "github.com/mattpocock/skills",
+      "path": "skills/productivity/grilling",
+      "version": "0.0.0",
+      "ref": "4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14",
+      "integrity": "sha256:4dd886b0196bf43729d954ae326016f2bd9f5f79d892500b407c33a753362f14"
+    },
+    {
+      "name": "teach",
+      "type": "skill",
+      "repo": "github.com/mattpocock/skills",
+      "path": "skills/productivity/teach",
+      "version": "0.0.0",
+      "ref": "b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206",
+      "integrity": "sha256:b8a69574c7a019bed84e84313dc8bf02e1d1bf925ba43057d433217c63863206"
+    },
+    {
+      "name": "to-questionnaire",
+      "type": "skill",
+      "repo": "github.com/mattpocock/skills",
+      "path": "skills/productivity/to-questionnaire",
+      "version": "0.0.0",
+      "ref": "befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1",
+      "integrity": "sha256:befbec7005695163741a57bc94810dc5048fb766baaa485d5160b1d7f86335c1"
+    },
+    {
+      "name": "wait-what",
+      "type": "skill",
+      "repo": "github.com/mattpocock/skills",
+      "path": "skills/productivity/wait-what",
+      "version": "0.0.0",
+      "ref": "1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403",
+      "integrity": "sha256:1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403"
+    },
+    {
+      "name": "writing-for-agents",
+      "type": "skill",
+      "repo": "github.com/mattpocock/skills",
+      "path": "skills/productivity/writing-for-agents",
+      "version": "0.0.0",
+      "ref": "95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f",
+      "integrity": "sha256:95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+    }
+  ],
+  "capabilities": [
+    {
+      "name": "cookcli",
+      "probe": "cook --version"
+    }
+  ],
+  "source": "file:skills/meal-plan"
+}

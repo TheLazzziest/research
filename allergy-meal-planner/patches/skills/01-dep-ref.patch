@@ -1,0 +1,88 @@
+From 40826dc0bcb3a52e71a634afabb585de784f636e Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:03:04 +0300
+Subject: [PATCH 2/5] skills: 01-dep-ref
+
+---
+ dist/cli.mjs | 68 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 68 insertions(+)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index b281872..af65751 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -6747,6 +6747,74 @@ function resolveSkillsToRemove(requested, folderNames, lockKeys = []) {
+ 	}
+ 	return Array.from(matched);
+ }
++// Shared dependency-ref parser used by `validate` and `sync`.
++//   file:<skill>                          -> local dep
++//   git:<location>:<skill>@<hash>       -> external dep (must be pinned)
++// Returns { type, name, version?, location?, error? }.
++function parseDepRef(dep) {
++	const d = String(dep).trim();
++	if (!d) return { type: "invalid", error: "empty dependency ref" };
++	if (d.startsWith("file:")) {
++		const name = d.slice("file:".length).trim();
++		if (!name) return { type: "invalid", error: `empty skill in '${dep}'` };
++		return { type: "file", name };
++	}
++	if (d.startsWith("capability:")) {
++		const name = d.slice("capability:".length).trim();
++		if (!name) return { type: "invalid", error: `empty capability in '${dep}'` };
++		return { type: "capability", name };
++	}
++	if (d.startsWith("git:")) {
++		const rest = d.slice("git:".length);
++		const colon = rest.indexOf(":");
++		if (colon === -1) {
++			return { type: "invalid", error: `malformed remote dep '${dep}' — expected git:<location>:<skill>@<hash>` };
++		}
++		const location = rest.slice(0, colon).trim();
++		let skillVer = rest.slice(colon + 1).trim();
++		const at = skillVer.indexOf("@");
++		const name = (at === -1 ? skillVer : skillVer.slice(0, at)).trim();
++		const version = at === -1 ? undefined : skillVer.slice(at + 1).trim();
++		if (!location || location.split("/").length < 2) {
++			return { type: "invalid", error: `malformed git location in '${dep}' — expected host/owner/repo` };
++		}
++		if (!name) return { type: "invalid", error: `empty skill in '${dep}'` };
++		if (!version) return { type: "invalid", error: `remote dep '${dep}' must be pinned with @<hash>` };
++		return { type: "git", location, name, version };
++	}
++	return { type: "invalid", error: `invalid dependency ref '${dep}' — use file:<skill> or git:<host>/<owner>/<repo>:<skill>@<hash>` };
++}
++// Read a skill's frontmatter + dependency refs. Returns { deps, name, error? }.
++// Supports both the legacy `metadata.depends-on` (string refs) and the typed
++// `metadata.dependencies` array (objects with a `source` field).
++function readSkillDeps(skillDir) {
++	// The dependency graph is resolved from manifest.json ONLY. SKILL.md frontmatter
++	// is the agent's context graph and is deliberately not read here; lint checks
++	// conformance between the two.
++	const skillMd = join(skillDir, "SKILL.md");
++	if (!existsSync(skillMd)) return { deps: [], name: null, error: "missing SKILL.md" };
++	const name = readSkillName(skillMd);
++	const deps = [];
++	const manifestPath = join(skillDir, "manifest.json");
++	if (existsSync(manifestPath)) {
++		try {
++			const mf = JSON.parse(readFileSync(manifestPath, "utf8"));
++			for (const d of Array.isArray(mf.dependencies) ? mf.dependencies : []) {
++				if (typeof d === "string") deps.push(d.includes(":") ? d : `file:${d}`);
++				else if (d && typeof d.source === "string") deps.push(d.source);
++				else if (d && typeof d.repo === "string") deps.push(`git:${d.repo}:${d.name}@${d.ref ?? d.version ?? ""}`);
++				else if (d && typeof d.path === "string") deps.push(`file:${basename(d.path)}`);
++			}
++		} catch (err) { return { deps: [], name, error: `invalid manifest.json: ${err.message}` }; }
++	}
++	return { deps, name };
++}
++function readSkillName(skillMd) {
++	try {
++		const { data } = parseFrontmatter(readFileSync(skillMd, "utf8"));
++		return typeof data?.name === "string" ? data.name : null;
++	} catch { return null; }
++}
+ async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {

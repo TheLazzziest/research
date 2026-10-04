@@ -1,0 +1,250 @@
+From 8a544e76a9b34f5186f56f91e0654d5068fd94be Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:29:17 +0300
+Subject: [PATCH] skills: 06-package-lint
+
+---
+ dist/cli.mjs | 216 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 214 insertions(+), 2 deletions(-)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index d7f686b..55910ee 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -7231,6 +7231,218 @@ async function runVerify(args) {
+ 	const hashed = await hashSkillGraph(skillsDir, graph);
+ 	await verifyAgainstLock(skillsDir, graph, hashed, { json });
+ }
++// --- P0.5: enforce the package contract (frontmatter + manifest + version + hooks) ---
++function isSemver(v) {
++	return typeof v === "string" && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(v.trim());
++}
++function readManifestFile(skillDir) {
++	const file = join(skillDir, "manifest.json");
++	if (!existsSync(file)) return { manifest: null, present: false, error: null };
++	try {
++		return { manifest: JSON.parse(readFileSync(file, "utf8")), present: true, error: null };
++	} catch (err) {
++		return { manifest: null, present: true, error: `invalid manifest.json: ${err.message}` };
++	}
++}
++function readSkillFrontmatter(skillMd) {
++	let raw;
++	try {
++		raw = readFileSync(skillMd, "utf8");
++	} catch (err) {
++		return { error: err.message };
++	}
++	const { data } = parseFrontmatter(raw);
++	if (!data || typeof data !== "object") return { error: "missing or invalid frontmatter" };
++	const meta = data.metadata ?? {};
++	return {
++		name: typeof data.name === "string" ? data.name : null,
++		description: typeof data.description === "string" ? data.description : null,
++		version: typeof meta.version === "string" ? meta.version : null,
++		dependencies: Array.isArray(meta.dependencies) ? meta.dependencies : Array.isArray(meta["depends-on"]) ? meta["depends-on"] : [],
++		capabilities: Array.isArray(meta.capabilities) ? meta.capabilities : [],
++		references: Array.isArray(meta.references) ? meta.references : [],
++		body: raw,
++	};
++}
++function bodyReferenceLinks(body) {
++	const links = new Set();
++	const re = /references\/[A-Za-z0-9._/-]+\.md/g;
++	let m;
++	while ((m = re.exec(body))) links.add(m[0]);
++	return [...links];
++}
++function listFilesSync(base, cur = base, out = []) {
++	for (const entry of readdirSync(cur, { withFileTypes: true })) {
++		if (entry.name === ".git" || entry.name === "node_modules") continue;
++		const full = join(cur, entry.name);
++		if (entry.isDirectory()) listFilesSync(base, full, out);
++		else if (entry.isFile()) out.push(relative(base, full).split("\\").join("/"));
++	}
++	return out;
++}
++function globMatch(pattern, rel) {
++	const p = pattern.includes("/") ? pattern : `**/${pattern}`;
++	const re = new RegExp(
++		"^" +
++			p
++				.replace(/[.+^${}()|[\]\\]/g, "\\$&")
++				.replace(/\*\*\//g, "(?:.*/)?")
++				.replace(/\*\*/g, ".*")
++				.replace(/\*/g, "[^/]*")
++				.replace(/\?/g, ".") +
++			"$",
++	);
++	return re.test(rel);
++}
++function loadLintHooks(repoRoot) {
++	const file = join(repoRoot, "skills.hooks.json");
++	if (!existsSync(file)) return [];
++	try {
++		const parsed = JSON.parse(readFileSync(file, "utf8"));
++		return Array.isArray(parsed.hooks) ? parsed.hooks : [];
++	} catch {
++		return [];
++	}
++}
++// Hooks are language-agnostic: `entry` is any command, `files` selects what it sees.
++// This is the pre-commit model, so multi-language skill scripts plug in without core changes.
++function runSkillHooks(skillDir, relFiles, hooks) {
++	const failures = [];
++	for (const hook of hooks) {
++		if (!hook || typeof hook.entry !== "string") continue;
++		const files = relFiles.filter((f) => globMatch(hook.files ?? "*", f));
++		if (files.length === 0) continue;
++		const result = spawnSync(hook.entry, files, { cwd: skillDir, shell: true, encoding: "utf8" });
++		if (result.status !== 0) failures.push(`${hook.id ?? hook.entry}: exit ${result.status} on ${files.length} file(s)`);
++	}
++	return failures;
++}
++function validatePackageSkill(dir, name, strict) {
++	const errors = [];
++	const warnings = [];
++	const skillMd = join(dir, "SKILL.md");
++	if (!existsSync(skillMd)) return { errors: [`${name}: missing SKILL.md`], warnings };
++	const fm = readSkillFrontmatter(skillMd);
++	if (fm.error) return { errors: [`${name}: ${fm.error}`], warnings };
++	if (fm.name !== name) errors.push(`${name}: frontmatter name '${fm.name ?? ""}' != directory`);
++	if (!fm.description) errors.push(`${name}: missing description`);
++	const mf = readManifestFile(dir);
++	if (mf.error) errors.push(`${name}: ${mf.error}`);
++	if (!mf.present) errors.push(`${name}: missing manifest.json (the package version must be declared independently of dependencies)`);
++	const m = mf.manifest;
++	if (m) {
++		if (typeof m.name === "string" && m.name !== name) errors.push(`${name}: manifest name '${m.name}' != directory`);
++		if (!isSemver(m.version)) errors.push(`${name}: manifest.version must be semver, got '${m.version ?? ""}'`);
++		if (m.dependencies !== undefined && !Array.isArray(m.dependencies)) errors.push(`${name}: dependencies must be an array`);
++		for (const d of Array.isArray(m.dependencies) ? m.dependencies : []) {
++			if (!d || typeof d.name !== "string") {
++				errors.push(`${name}: dependency entry missing name`);
++			} else if (d.type !== "skill") {
++				errors.push(`${name}: dependency '${d.name}' must be a skill (tools go in capabilities)`);
++			} else if (!d.path && !d.repo) {
++				errors.push(`${name}: dependency '${d.name}' has no path/repo`);
++			} else if (d.repo && !d.ref) {
++				errors.push(`${name}: remote dependency '${d.name}' missing ref`);
++			}
++		}
++		// References are context (frontmatter); the file must exist.
++		const declared = new Set();
++		for (const r of fm.references ?? []) {
++			const value = typeof r === "string" ? r : r?.path;
++			if (typeof value !== "string") {
++				errors.push(`${name}: reference entry must be a string`);
++				continue;
++			}
++			declared.add(value);
++			if (!existsSync(join(dir, value))) errors.push(`${name}: declared reference missing on disk: ${value}`);
++		}
++		// version identity: SKILL.md must mirror the manifest so updates are diffable and regressions attributable
++		if (!fm.version) errors.push(`${name}: SKILL.md is missing metadata.version (must mirror manifest ${m.version})`);
++		else if (fm.version !== m.version) errors.push(`${name}: version mismatch — SKILL.md ${fm.version} != manifest ${m.version}`);
++		if (m.source !== undefined && (typeof m.source !== "string" || !/^(file:|git:)/.test(m.source))) {
++			errors.push(`${name}: manifest.source must start with 'file:' or 'git:'`);
++		}
++		// Conformance between the context graph (frontmatter) and the dependency graph (manifest).
++		const manifestDeps = new Set(
++			(Array.isArray(m.dependencies) ? m.dependencies : [])
++				.map((d) => (typeof d === "string" ? d : d?.name))
++				.filter((d) => typeof d === "string"),
++		);
++		for (const dep of fm.dependencies ?? []) {
++			const value = typeof dep === "string" ? dep : dep?.name ?? dep?.source;
++			if (typeof value !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(value)) {
++				errors.push(`${name}: frontmatter dependency '${String(value)}' must be a bare skill name (no scheme)`);
++			} else if (!manifestDeps.has(value)) {
++				(strict ? errors : warnings).push(`${name}: frontmatter dependency '${value}' has no matching manifest dependency (context graph ahead of the package)`);
++			}
++		}
++		for (const cap of fm.capabilities ?? []) {
++			const value = typeof cap === "string" ? cap : cap?.name;
++			if (typeof value !== "string" || !/^[a-z0-9][a-z0-9_-]*$/i.test(value)) {
++				errors.push(`${name}: frontmatter capability '${String(value)}' must be a bare capability name`);
++			}
++		}
++		for (const cap of Array.isArray(m.capabilities) ? m.capabilities : []) {
++			if (!cap || typeof cap.name !== "string") {
++				errors.push(`${name}: capability entry missing name`);
++			} else if (cap.probe !== undefined && typeof cap.probe !== "string") {
++				errors.push(`${name}: capability '${cap.name}' probe must be a string`);
++			}
++		}
++		for (const ref of bodyReferenceLinks(fm.body)) {
++			if (!existsSync(join(dir, ref))) errors.push(`${name}: body links ${ref} but the file is missing`);
++			else if (!declared.has(ref)) (strict ? errors : warnings).push(`${name}: body links ${ref} but it is not declared in frontmatter references`);
++		}
++	}
++	return { errors, warnings };
++}
++function parsePackageLintArgs(args) {
++	let skillsDir = "skills";
++	let strict = false;
++	for (let i = 0; i < args.length; i++) {
++		if (args[i] === "--skills-dir") skillsDir = args[++i] ?? "skills";
++		else if (args[i] === "--strict") strict = true;
++	}
++	return { skillsDir, strict };
++}
++async function runPackageLint(args) {
++	const { skillsDir, strict } = parsePackageLintArgs(args);
++	const root = resolve(skillsDir);
++	if (!existsSync(root)) {
++		console.log(`${import_picocolors.default.red("✗")} skills dir not found: ${root}`);
++		process.exitCode = 1;
++		return;
++	}
++	const names = readdirSync(root, { withFileTypes: true })
++		.filter((e) => e.isDirectory())
++		.map((e) => e.name);
++	const hooks = loadLintHooks(dirname(root));
++	const errors = [];
++	const warnings = [];
++	let ok = 0;
++	for (const name of names) {
++		const dir = join(root, name);
++		if (!existsSync(join(dir, "SKILL.md"))) continue;
++		const result = validatePackageSkill(dir, name, strict);
++		const hookFailures = runSkillHooks(dir, listFilesSync(dir), hooks).map((f) => `${name}: ${f}`);
++		errors.push(...result.errors, ...hookFailures);
++		warnings.push(...result.warnings);
++		if (result.errors.length === 0 && hookFailures.length === 0) {
++			ok++;
++			console.log(`${import_picocolors.default.green("✓")} ${name}`);
++		} else {
++			console.log(`${import_picocolors.default.red("✗")} ${name}`);
++		}
++	}
++	for (const w of warnings) console.log(`${import_picocolors.default.yellow("!")} ${w}`);
++	if (errors.length > 0) {
++		for (const e of errors) console.log(`${import_picocolors.default.red("✗")} ${e}`);
++		console.log(`\nFAIL: ${errors.length} error(s), ${warnings.length} warning(s)`);
++		process.exitCode = 1;
++		return;
++	}
++	console.log(`\n${names.length} skill(s): ${import_picocolors.default.green(String(ok))} ok, ${warnings.length} warning(s)`);
++}
+ async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+@@ -8665,7 +8877,7 @@ ${BOLD}Project:${RESET}
+   experimental_install Restore skills from skills-lock.json
+   lock                 Resolve the skill graph, hash it, write the lock
+   verify               Verify the graph against the lock (CI gate)
+-  lint [dir]           Validate SKILL.md frontmatter in a directory (default: skills)
++  lint [dir]           Validate skill packages: frontmatter, manifest, version (default: skills)
+   validate             Validate skill dep graph (scheme, file: existence, cycles)
+   init [name]          Initialize a skill (creates <name>/SKILL.md or ./SKILL.md)
+   sync                 Sync skills from node_modules into agent directories
+@@ -8890,7 +9102,7 @@ async function main() {
+ 			break;
+ 		case "lint":
+ 		case "check-skill":
+-			await runLint(restArgs);
++			await runPackageLint(restArgs);
+ 			break;
+ 		case "lock":
+ 			await runLock(restArgs);

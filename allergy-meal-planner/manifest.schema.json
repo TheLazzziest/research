@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Skill Manifest",
+  "description": "Sibling manifest.json for an Agent Skill. It is the skill's PACKAGE record and dependency graph, resolved by the skills CLI: version identity, skills-only dependencies expressed as package references (path for local, repo + ref for remote), and runtime capabilities. The context graph lives in SKILL.md frontmatter, not here.",
+  "type": "object",
+  "required": ["name", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema id this manifest conforms to."
+    },
+    "name": {
+      "type": "string",
+      "description": "Skill name; must match the parent directory and the SKILL.md frontmatter name.",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version; mirrors SKILL.md metadata.version.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "source": {
+      "type": "string",
+      "description": "Origin of THIS skill: file:<path> when local, git:<host/owner/repo>@<ref> when published.",
+      "pattern": "^(file:.+|git:.+@.+)$"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Classification tags."
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Skill dependencies only (package refs). Tools go in capabilities.",
+      "items": { "$ref": "#/$defs/dependency" }
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "Runtime capabilities the skill needs. A need, not an implementation.",
+      "items": { "$ref": "#/$defs/capability" }
+    }
+  },
+  "$defs": {
+    "dependency": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Dependency skill name."
+        },
+        "type": {
+          "const": "skill",
+          "description": "Dependencies are skills. Tools are capabilities."
+        },
+        "path": {
+          "type": "string",
+          "description": "Workspace-relative path for a local (vendored) dependency."
+        },
+        "repo": {
+          "type": "string",
+          "description": "host/owner/repo for a remote dependency."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version constraint or resolved version."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Pinned commit or content hash for a remote dependency."
+        },
+        "integrity": {
+          "type": "string",
+          "description": "Content hash for a remote dependency.",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "allOf": [
+        {
+          "description": "A local dependency needs a path; a remote one a repo.",
+          "anyOf": [{ "required": ["path"] }, { "required": ["repo"] }]
+        },
+        {
+          "description": "A remote dependency must be pinned.",
+          "if": { "required": ["repo"] },
+          "then": { "required": ["ref"] }
+        }
+      ]
+    },
+    "capability": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
+          "description": "Capability name the environment provides."
+        },
+        "probe": {
+          "type": "string",
+          "description": "Shell command that exits 0 when the capability is available."
+        }
+      }
+    }
+  }
+}

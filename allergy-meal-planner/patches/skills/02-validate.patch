@@ -1,0 +1,100 @@
+From 6e3f8da25e02494cacf8dc54337a232ca5aa0b0f Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:03:04 +0300
+Subject: [PATCH 3/5] skills: 02-validate
+
+---
+ dist/cli.mjs | 66 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 66 insertions(+)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index af65751..1be7fca 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -6815,6 +6815,67 @@ function readSkillName(skillMd) {
+ 		return typeof data?.name === "string" ? data.name : null;
+ 	} catch { return null; }
+ }
++// Scan a skills dir for subdirs with SKILL.md, validate dep graph (scheme, file:
++// existence, cycles). Flags:
++//   --skills-dir <path>   (default: skills)
++//   --staged <paths...>   restrict to listed skill dirs
++async function runValidate(args) {
++	let skillsDir = "skills";
++	const staged = [];
++	for (let i = 0; i < args.length; i++) {
++		if (args[i] === "--skills-dir") { skillsDir = args[i + 1] ?? "skills"; i++; }
++		else if (args[i] === "--staged") { while (i + 1 < args.length && !args[i + 1].startsWith("--")) staged.push(args[++i]); }
++	}
++	const root = resolve(skillsDir);
++	if (!existsSync(root)) { console.log(`${import_picocolors.default.red("✗")} skills dir not found: ${root}`); process.exitCode = 1; return; }
++	const entries = readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory());
++	const skills = entries.map((e) => e.name);
++	const target = staged.length > 0 ? staged.filter((n) => skills.includes(n)) : skills;
++	const errors = [];
++	const byName = {};
++	for (const name of entries.map((e) => e.name)) {
++		const dir = join(root, name);
++		const r = readSkillDeps(dir);
++		if (r.error) { errors.push(`${name}: ${r.error}`); continue; }
++		if (r.name && r.name !== name) errors.push(`${name}: frontmatter name '${r.name}' != directory name`);
++		byName[name] = r.deps;
++	}
++	for (const name of target) {
++		if (!(name in byName)) { errors.push(`${name}: not a skill in ${root}`); continue; }
++		for (const dep of byName[name]) {
++			const p = parseDepRef(dep);
++			if (p.error) { errors.push(`${name}: depends-on '${dep}' -> ${p.error}`); continue; }
++			if (p.type === "file" && !skills.includes(p.name)) {
++				errors.push(`${name}: depends-on '${dep}' -> skill '${p.name}' not found on disk`);
++			}
++		}
++	}
++	// cycle detection over local (file:) deps only
++	const visited = new Set();
++	function hasCycle(node, stack) {
++		if (stack.includes(node)) return true;
++		if (visited.has(node)) return false;
++		stack.push(node);
++		for (const dep of byName[node] ?? []) {
++			const p = parseDepRef(dep);
++			if (p.error || p.type !== "file") continue;
++			if (hasCycle(p.name, stack)) return true;
++		}
++		stack.pop();
++		visited.add(node);
++		return false;
++	}
++	for (const name of target) {
++		if (hasCycle(name, [])) errors.push(`circular dependency detected at ${name}`);
++	}
++	if (errors.length > 0) {
++		for (const e of errors) console.log(`${import_picocolors.default.red("✗")} ${e}`);
++		console.log(`\nFAIL: ${errors.length} issue(s)`);
++		process.exitCode = 1;
++		return;
++	}
++	console.log(`OK: ${target.length} skill(s), dependencies valid`);
++}
+ async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+@@ -8247,6 +8308,7 @@ ${BOLD}Update Options:${RESET}
+ 
+ ${BOLD}Project:${RESET}
+   experimental_install Restore skills from skills-lock.json
++  validate             Validate skill dep graph (scheme, file: existence, cycles)
+   init [name]          Initialize a skill (creates <name>/SKILL.md or ./SKILL.md)
+   experimental_sync    Sync skills from node_modules into agent directories
+ 
+@@ -8459,6 +8521,10 @@ async function main() {
+ 			await runSync(restArgs, syncOptions);
+ 			break;
+ 		}
++		case "validate":
++		case "validate-skill-deps":
++			await runValidate(restArgs);
++			break;
+ 		case "list":
+ 		case "ls":
+ 			await runList(restArgs);
