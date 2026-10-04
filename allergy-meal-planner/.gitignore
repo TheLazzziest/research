@@ -4,7 +4,3 @@ dist/
 *.log
 .agents/
 .hermes/
-
-# Local-only drafts (not tracked)
-devto-post.md
-SKILLS-PACKAGE-ROADMAP.md
