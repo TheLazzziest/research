@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Skill Lint Hooks",
+  "description": "Pluggable, language-agnostic lint hooks for skills: each hook is a command run against matching files (the pre-commit model), so multi-language skill scripts are checked by per-language tools without changing the core.",
+  "type": "object",
+  "required": ["hooks"],
+  "additionalProperties": false,
+  "properties": {
+    "hooks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "entry"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Hook id, used in output and for skipping."
+          },
+          "entry": {
+            "type": "string",
+            "description": "Command to run; matched files are passed as arguments."
+          },
+          "files": {
+            "type": "string",
+            "description": "Glob of files to run the hook on (default: all)."
+          }
+        }
+      }
+    }
+  }
+}

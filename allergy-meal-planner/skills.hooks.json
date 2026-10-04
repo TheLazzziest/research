@@ -1,0 +1,8 @@
+{
+  "$schema": "./hooks.schema.json",
+  "hooks": [
+    { "id": "shell-syntax", "entry": "bash -n", "files": "**/*.sh" },
+    { "id": "python-compile", "entry": "python3 -m py_compile", "files": "**/*.py" },
+    { "id": "js-parse", "entry": "node --check", "files": "**/*.js" }
+  ]
+}
