@@ -1,0 +1,286 @@
+From 5dc9764b1777547818044cae4b9405e6a2e2b1cb Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:29:18 +0300
+Subject: [PATCH] skills: 09-deps
+
+---
+ dist/cli.mjs | 252 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 252 insertions(+)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index 58ac737..4a3973e 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -7768,6 +7768,250 @@ async function runImpact(args) {
+ 	console.log(`${dependents.length} skill(s) depend (transitively) on ${node}:`);
+ 	for (const d of dependents) console.log(`  ${d}`);
+ }
++// --- P2: manage a skill's dependency graph (mutation API over both resources) ---
++const SKILL_FM = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
++function readSkillDoc(skillMd) {
++	const raw = readFileSync(skillMd, "utf8");
++	const m = raw.match(SKILL_FM);
++	if (!m) return { error: "no frontmatter" };
++	return { data: parse(m[1]) ?? {}, body: m[2] ?? "", raw };
++}
++function writeSkillDoc(skillMd, data, body) {
++	writeFileSync(skillMd, `---\n${stringify(data).trimEnd()}\n---\n${body}`, "utf8");
++}
++function skillExists(skillsDir, name) {
++	return existsSync(join(skillsDir, name, "SKILL.md"));
++}
++function localSkillVersion(skillsDir, name) {
++	try {
++		return JSON.parse(readFileSync(join(skillsDir, name, "manifest.json"), "utf8")).version || "0.1.0";
++	} catch {
++		return "0.1.0";
++	}
++}
++function depLocal(skillsDir, name) {
++	return { name, type: "skill", path: `skills/${name}`, version: localSkillVersion(skillsDir, name) };
++}
++function depRemote(name, repo, pathValue, ref) {
++	const entry = { name, type: "skill", repo, path: pathValue || `skills/${name}`, version: "0.0.0", ref };
++	if (/^[a-f0-9]{64}$/.test(ref)) entry.integrity = `sha256:${ref}`;
++	return entry;
++}
++function uniqSort(values) {
++	return [...new Set(values.filter((v) => typeof v === "string"))].sort();
++}
++function setNames(container, key, values) {
++	container[key] = uniqSort(values);
++}
++// Mutate one skill's manifest + frontmatter together; reject cycles and restore on error.
++function mutateSkill(skillsDir, name, mutate) {
++	const dir = join(skillsDir, name);
++	const mfPath = join(dir, "manifest.json");
++	const mdPath = join(dir, "SKILL.md");
++	if (!existsSync(mfPath) || !existsSync(mdPath)) return { error: `skill not found: ${name}` };
++	const original = { mf: readFileSync(mfPath, "utf8"), md: readFileSync(mdPath, "utf8") };
++	const manifest = JSON.parse(original.mf);
++	const doc = readSkillDoc(mdPath);
++	if (doc.error) return { error: `${name}: ${doc.error}` };
++	mutate(manifest, doc);
++	manifest.dependencies = (Array.isArray(manifest.dependencies) ? manifest.dependencies : [])
++		.slice()
++		.sort((a, b) => (a.name < b.name ? -1 : 1));
++	if (Array.isArray(manifest.capabilities)) manifest.capabilities = manifest.capabilities.slice().sort((a, b) => (a.name < b.name ? -1 : 1));
++	doc.data.metadata = doc.data.metadata || {};
++	setNames(doc.data.metadata, "dependencies", doc.data.metadata.dependencies);
++	setNames(doc.data.metadata, "capabilities", doc.data.metadata.capabilities);
++	writeFileSync(mfPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
++	writeSkillDoc(mdPath, doc.data, doc.body);
++	const graph = resolveSkillGraph(skillsDir);
++	if (graph.error) {
++		writeFileSync(mfPath, original.mf, "utf8");
++		writeFileSync(mdPath, original.md, "utf8");
++		return { error: graph.error };
++	}
++	return { graph, manifest, doc };
++}
++async function lockAfter(skillsDir) {
++	const graph = resolveSkillGraph(skillsDir);
++	if (graph.error) return graph.error;
++	const hashed = await hashSkillGraph(skillsDir, graph);
++	await writeGraphLock(skillsDir, graph, hashed);
++	return null;
++}
++function parseDepsArgs(args) {
++	let skillsDir = "skills";
++	const opts = { local: false, all: false };
++	const rest = [];
++	for (let i = 0; i < args.length; i++) {
++		const a = args[i];
++		if (a === "--skills-dir") skillsDir = args[++i] ?? "skills";
++		else if (a === "--local") opts.local = true;
++		else if (a === "--all") opts.all = true;
++		else if (a === "--repo") opts.repo = args[++i];
++		else if (a === "--path") opts.path = args[++i];
++		else if (a === "--ref") opts.ref = args[++i];
++		else if (a === "--probe") opts.probe = args[++i];
++		else if (a === "--json") opts.json = true;
++		else if (a === "--plain") opts.plain = true;
++		else rest.push(a);
++	}
++	return { skillsDir, opts, rest };
++}
++function depView(entry) {
++	return entry.repo ? `${entry.repo}@${entry.ref}${entry.path ? "#" + entry.path : ""}` : `${entry.path ?? "skills/" + entry.name}@${entry.version ?? ""}`;
++}
++async function runDeps(args) {
++	const sub = args[0];
++	const { skillsDir, opts, rest } = parseDepsArgs(args.slice(1));
++	const fail = (msg) => {
++		if (opts.json) console.log(JSON.stringify({ ok: false, error: msg }));
++		else console.log(`${import_picocolors.default.red("✗")} ${msg}`);
++		process.exitCode = 1;
++	};
++	if (sub === "list") {
++		const names = rest[0]
++			? [rest[0]]
++			: readdirSync(skillsDir, { withFileTypes: true })
++					.filter((e) => e.isDirectory())
++					.map((e) => e.name)
++					.sort();
++		const rows = [];
++		const entrySource = new Map();
++		for (const name of names) {
++			const mfPath = join(skillsDir, name, "manifest.json");
++			if (!existsSync(mfPath)) continue;
++			let mf;
++			try {
++				mf = JSON.parse(readFileSync(mfPath, "utf8"));
++			} catch {
++				continue;
++			}
++			entrySource.set(name, typeof mf.source === "string" ? mf.source : "");
++			for (const d of Array.isArray(mf.dependencies) ? mf.dependencies : []) {
++				if (!d || typeof d.name !== "string") continue;
++				const source = d.repo ? `git:${d.repo}` : `file:${d.path ?? `skills/${d.name}`}`;
++				rows.push({ skill: name, entry: mf.source ?? null, dep: d.name, type: d.type ?? "skill", source, ref: d.ref ?? null });
++			}
++		}
++		if (opts.json) {
++			console.log(JSON.stringify({ deps: rows }, null, 2));
++			return;
++		}
++		if (opts.plain) {
++			for (const r of rows) console.log([r.skill, r.dep, r.type, r.source + (r.ref ? `@${r.ref}` : ""), r.entry ?? ""].join("\t"));
++			return;
++		}
++		const bySkill = new Map();
++		for (const name of names) bySkill.set(name, []);
++		for (const r of rows) bySkill.get(r.skill)?.push(`${r.dep} (${r.source})`);
++		for (const [skill, list] of bySkill) {
++			const src = entrySource.get(skill);
++			const label = src ? `${skill} (${src})` : skill;
++			console.log(`${import_picocolors.default.cyan(label)}: ${list.join(", ") || "(none)"}`);
++		}
++		return;
++	}
++	if (sub === "sync") {
++		const names = opts.all || !rest[0] ? readdirSync(skillsDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name) : [rest[0]];
++		let changed = 0;
++		for (const name of names) {
++			const mfPath = join(skillsDir, name, "manifest.json");
++			const mdPath = join(skillsDir, name, "SKILL.md");
++			if (!existsSync(mfPath) || !existsSync(mdPath)) continue;
++			const classRefs = readSkillDeps(join(skillsDir, name)).deps.map((r) => parseDepRef(r).name).filter(Boolean);
++			const doc = readSkillDoc(mdPath);
++			const md = doc.data?.metadata ?? {};
++			const contextNames = Array.isArray(md.dependencies) ? md.dependencies.filter((d) => typeof d === "string") : [];
++			const manifest = JSON.parse(readFileSync(mfPath, "utf8"));
++			const pkgNames = (Array.isArray(manifest.dependencies) ? manifest.dependencies : []).map((d) => d.name);
++			const toAddToManifest = contextNames.filter((n) => !pkgNames.includes(n) && skillExists(skillsDir, n));
++			const toAddToContext = pkgNames.filter((n) => !contextNames.includes(n));
++			if (toAddToManifest.length === 0 && toAddToContext.length === 0) continue;
++			mutateSkill(skillsDir, name, (m, d2) => {
++				for (const dep of toAddToManifest) m.dependencies.push(depLocal(skillsDir, dep));
++				d2.data.metadata = d2.data.metadata || {};
++				d2.data.metadata.dependencies = [...contextNames, ...toAddToManifest, ...toAddToContext];
++			});
++			changed++;
++		}
++		if (changed > 0) await lockAfter(skillsDir);
++		console.log(`${import_picocolors.default.green("✓")} synced ${changed} skill(s)`);
++		return;
++	}
++	const [skill, dep] = rest;
++	if (!skill || !dep) return fail("usage: skills deps add|rm <skill> <dep> [--local | --repo <r> --path <p> --ref <h>]");
++	if (sub === "add") {
++		let entry;
++		if (opts.repo) {
++			if (!opts.ref) return fail("remote dependency requires --ref <commit>");
++			entry = depRemote(dep, opts.repo, opts.path, opts.ref);
++		} else if (opts.local || skillExists(skillsDir, dep)) {
++			if (!skillExists(skillsDir, dep)) return fail(`local dependency not found: ${dep}`);
++			entry = depLocal(skillsDir, dep);
++		} else {
++			return fail("specify --local <skill>, or --repo <host/owner/repo> --ref <commit>");
++		}
++		const result = mutateSkill(skillsDir, skill, (m, d) => {
++			m.dependencies = (Array.isArray(m.dependencies) ? m.dependencies : []).filter((x) => x.name !== dep);
++			m.dependencies.push(entry);
++			d.data.metadata = d.data.metadata || {};
++			d.data.metadata.dependencies = [...(d.data.metadata.dependencies ?? []), dep];
++		});
++		if (result.error) return fail(result.error);
++		await lockAfter(skillsDir);
++		console.log(`${import_picocolors.default.green("✓")} ${skill} + ${dep} (${depView(entry)})`);
++		return;
++	}
++	if (sub === "rm") {
++		const result = mutateSkill(skillsDir, skill, (m, d) => {
++			m.dependencies = (Array.isArray(m.dependencies) ? m.dependencies : []).filter((x) => x.name !== dep);
++			d.data.metadata = d.data.metadata || {};
++			d.data.metadata.dependencies = (d.data.metadata.dependencies ?? []).filter((x) => x !== dep);
++		});
++		if (result.error) return fail(result.error);
++		await lockAfter(skillsDir);
++		console.log(`${import_picocolors.default.green("✓")} ${skill} - ${dep}`);
++		return;
++	}
++	return fail(`unknown deps subcommand: ${sub}`);
++}
++async function runCaps(args) {
++	const sub = args[0];
++	const { skillsDir, opts, rest } = parseDepsArgs(args.slice(1));
++	const fail = (msg) => {
++		if (opts.json) console.log(JSON.stringify({ ok: false, error: msg }));
++		else console.log(`${import_picocolors.default.red("✗")} ${msg}`);
++		process.exitCode = 1;
++	};
++	const [skill, name] = rest;
++	if (!skill || !name) return fail("usage: skills caps add|rm <skill> <name> [--probe <cmd>]");
++	if (sub === "add") {
++		const result = mutateSkill(skillsDir, skill, (m, d) => {
++			m.capabilities = (Array.isArray(m.capabilities) ? m.capabilities : []).filter((c) => c.name !== name);
++			const cap = { name };
++			if (opts.probe) cap.probe = opts.probe;
++			m.capabilities.push(cap);
++			d.data.metadata = d.data.metadata || {};
++			d.data.metadata.capabilities = [...(d.data.metadata.capabilities ?? []), name];
++		});
++		if (result.error) return fail(result.error);
++		await lockAfter(skillsDir);
++		console.log(`${import_picocolors.default.green("✓")} ${skill} + capability ${name}`);
++		return;
++	}
++	if (sub === "rm") {
++		const result = mutateSkill(skillsDir, skill, (m, d) => {
++			m.capabilities = (Array.isArray(m.capabilities) ? m.capabilities : []).filter((c) => c.name !== name);
++			d.data.metadata = d.data.metadata || {};
++			d.data.metadata.capabilities = (d.data.metadata.capabilities ?? []).filter((x) => x !== name);
++		});
++		if (result.error) return fail(result.error);
++		await lockAfter(skillsDir);
++		console.log(`${import_picocolors.default.green("✓")} ${skill} - capability ${name}`);
++		return;
++	}
++	return fail(`unknown caps subcommand: ${sub}`);
++}
+ async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+@@ -9200,6 +9444,8 @@ ${BOLD}Update Options:${RESET}
+ 
+ ${BOLD}Project:${RESET}
+   experimental_install Restore skills from skills-lock.json
++  deps add|rm|list|sync  Manage a skill's dependencies (manifest + frontmatter)
++  caps add|rm            Manage a skill's capabilities
+   graph [--mermaid|--dot|--json]  Render the skill graph (SCCs via Tarjan)
+   lineage <a> <b>      Show the dependency lineage with edge types (--all, --reverse, --json)
+   impact <node>        List skills that depend on <node>
+@@ -9447,6 +9693,12 @@ async function main() {
+ 		case "impact":
+ 			await runImpact(restArgs);
+ 			break;
++		case "deps":
++			await runDeps(restArgs);
++			break;
++		case "caps":
++			await runCaps(restArgs);
++			break;
+ 		case "list":
+ 		case "ls":
+ 			await runList(restArgs);
