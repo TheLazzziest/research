@@ -1,0 +1,82 @@
+From b0e4257da507233e760a420d2aaf7bc47bdcf1a1 Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:03:04 +0300
+Subject: [PATCH 5/5] skills: 04-sync-deps
+
+---
+ dist/cli.mjs | 43 ++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 40 insertions(+), 3 deletions(-)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index d2ab295..e99ae0d 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -6915,7 +6915,39 @@ async function runLint(args = []) {
+ 	console.log(`\n${checked} skill(s): ${import_picocolors.default.green(String(passed))} ok, ${failed > 0 ? import_picocolors.default.red(String(failed)) : String(failed)} invalid`);
+ 	if (failed > 0) process.exitCode = 1;
+ }
+-async function removeCommand(skillNames, options) {
++// Install external (git:) skill deps declared in each skill's depends-on.
++// Reuses the same dep parser as `validate` so resolution stays consistent.
++// Flags: --skills-dir <path> (default: skills), --agent <agent> (default opencode), -y
++async function runSyncExternal(args) {
++	let skillsDir = "skills";
++	let agent = "opencode";
++	let yes = false;
++	for (let i = 0; i < args.length; i++) {
++		if (args[i] === "--skills-dir") { skillsDir = args[i + 1] ?? "skills"; i++; }
++		else if (args[i] === "--agent") { agent = args[i + 1] ?? "opencode"; i++; }
++		else if (args[i] === "-y" || args[i] === "--yes") yes = true;
++	}
++	const root = resolve(skillsDir);
++	if (!existsSync(root)) { console.log(`${import_picocolors.default.red("✗")} skills dir not found: ${root}`); process.exitCode = 1; return; }
++	const externals = new Map();
++	for (const e of readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
++		const { deps } = readSkillDeps(join(root, e.name));
++		for (const dep of deps) {
++			const p = parseDepRef(dep);
++			if (p.type !== "git") continue;
++			externals.set(`${p.location}#${p.name}`, { location: p.location, name: p.name });
++		}
++	}
++	if (externals.size === 0) { console.log("sync: no external deps to install"); return; }
++	console.log(`sync: installing ${externals.size} external dep(s)`);
++	for (const { location, name } of externals.values()) {
++		// location is already fully qualified (e.g. gitlab.com/acme/skills) —
++		// pass it as-is; the CLI resolves the transport.
++		console.log(`  ${location}#${name}`);
++		await runAdd([location], { agent: [agent], yes, skill: [name] });
++	}
++	console.log("sync: done");
++}async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+ 		options.yes = true;
+@@ -8350,7 +8382,8 @@ ${BOLD}Project:${RESET}
+   lint [dir]           Validate SKILL.md frontmatter in a directory (default: skills)
+   validate             Validate skill dep graph (scheme, file: existence, cycles)
+   init [name]          Initialize a skill (creates <name>/SKILL.md or ./SKILL.md)
+-  experimental_sync    Sync skills from node_modules into agent directories
++  sync                 Sync skills from node_modules into agent directories
++  sync-deps            Install external (git:) deps declared in depends-on
+ 
+ ${BOLD}Add Options:${RESET}
+   -g, --global           Install skill globally (user-level) instead of project-level
+@@ -8555,12 +8588,16 @@ async function main() {
+ 			await removeCommand(skills, removeOptions);
+ 			break;
+ 		}
+-		case "experimental_sync": {
++		case "experimental_sync":
++		case "sync": {
+ 			if (!inAgent) showLogo();
+ 			const { options: syncOptions } = parseSyncOptions(restArgs);
+ 			await runSync(restArgs, syncOptions);
+ 			break;
+ 		}
++		case "sync-deps":
++			await runSyncExternal(restArgs);
++			break;
+ 		case "validate":
+ 		case "validate-skill-deps":
+ 			await runValidate(restArgs);
