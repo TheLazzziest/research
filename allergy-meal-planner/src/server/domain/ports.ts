@@ -38,3 +38,13 @@ export type ClassificationAnswers = Record<string, unknown>;
 export interface ClassifierPort {
   classify(input: { text: string; questions: ClassificationQuestions }): Promise<ClassificationAnswers>;
 }
+
+export interface TtsResult {
+  audio: Uint8Array;
+  contentType: string;
+}
+
+// Port: voice narration (text -> audio). Adapter: ElevenLabs.
+export interface TtsPort {
+  synthesize(text: string): Promise<TtsResult>;
+}

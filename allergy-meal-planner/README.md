@@ -1,92 +1,161 @@
-# Skill graphs, not models
+# Allergy-safe meal planner
 
-### A field experiment: where does an agent's guarantee actually live?
+A voice-driven meal planner built **for one friend with real food allergies**
+(Hacktoberfest 2026, *Build for a Friend*). Its behaviour lives in a **versioned skill
+graph**, not in the model; delivery runs on open-weight models through the Backboard
+adapter. The app is the probe — see the dev.to post for the idea. This file is the tech.
 
-The app is small on purpose: a voice-driven meal planner built for one friend with
-real food allergies (Hacktoberfest, *Build for a Friend*). The experiment is larger:
-whether the trustworthy part of an agent can live in an explicit graph of skills
-rather than in the model.
+## Two resources, two resolvers
 
-## The idea
+A skill lives in two files with two jobs. They must not cross: the CLI resolves the
+dependency graph; the LLM resolves the context graph.
 
-An agent's competence is a graph, not a prompt. Nodes are skills; edges are skill
-dependencies (one skill requiring another). Capabilities — tools a skill needs, like the
-allergen screen — are a separate, non-installed surface. The graph is the thing you read,
-version, and vendor.
+`manifest.json` — the package (CLI-resolved):
 
-## The hypothesis
+```jsonc
+{
+  "name": "shopping-list",
+  "version": "0.1.0",
+  "source": "file:skills/shopping-list",
+  "dependencies": [
+    { "name": "scale-recipe", "type": "skill", "path": "skills/scale-recipe", "version": "0.1.0" },
+    { "name": "grilling", "type": "skill",
+      "repo": "github.com/mattpocock/skills",
+      "path": "skills/productivity/grilling",
+      "ref": "4dd886b0…", "integrity": "sha256:4dd886b0…" }
+  ],
+  "capabilities": [ { "name": "cookcli", "probe": "cook --version" } ]
+}
+```
 
-**Behavior that matters is carried by the graph, not the model.** So:
+`SKILL.md` frontmatter — the context (LLM-resolved):
 
-- swapping LLM models (including open-weight ones) changes style, not the safety outcome;
-- loading reference material on demand keeps context bounded regardless of model;
-- a graph with no registry resolves from vendored files and runs anywhere.
+```yaml
+---
+name: shopping-list
+description: Turn chosen recipes into one consolidated shopping list.
+metadata:
+  version: 0.1.0
+  dependencies: [scale-recipe, export-recipe, grilling, teach, to-questionnaire, wait-what, writing-for-agents]
+  capabilities: [cookcli]
+  references: [references/format.md]
+---
+```
 
-If that holds, the guarantee is model-independent: an open-weight model behind any
-adapter should do. Delivery here runs on the **Backboard adapter** over open-weight
-models (`cerebras`, `openrouter`, `featherless`); the graph, not the model, is what we
-hold fixed.
+Rules: `dependencies` are **skills only**; tools are **capabilities**; `references` are
+context; `version` lives in both and must mirror; `source` records where *this* skill came
+from (`file:` locally, `git:<repo>@<ref>` when published). Schemas:
+`manifest.schema.json`, `hooks.schema.json`.
 
-## Why it matters
+## Capabilities are needs, not implementations
 
-Language models only help for real work if you can trust them where the stakes are. Where that trust comes from is the question. If it comes from the model itself, an open model is *cheap but a gamble* — nothing outside it vouches for the result. If it comes from a graph you can read, version, and vendor, the model only has to be good enough, and it stays swappable. That difference is the whole open-innovation claim. This experiment tries to locate the trust precisely.
+A capability declares a need and, optionally, a probe. The environment decides how to
+provide and invoke it (MCP server, binary, Python/Rust script, HTTP API). `cookcli` is
+`probe: "cook --version"`; `allergy_guard` is host-provided (no probe → delegated).
 
-## Why this test
+## The content-addressable lock
 
-A friend with a food allergy is a good falsifier: a wrong ingredient is a safety event, not a style miss. The task also composes naturally — pantry, portion scaling, recipes, shopping, and a screen that must not depend on the model — so the graph has real edges instead of decorative ones. It is small enough to run end to end and strict enough to break the hypothesis if the hypothesis is wrong.
+`skills lock` resolves the dependency graph, hashes each skill's content, and writes a
+**Merkle** lock: a node's hash folds its version, content, and its dependencies' hashes. A
+reference is a locator plus a digest:
 
-## The fixed part and the variable
+```
+skills/scale-recipe@sha256:6e470856…
+git+github.com/mattpocock/skills@4dd886b0…#grilling@sha256:4dd886b0…
+```
 
-The hypothesis is about what controls behavior, so the test changes one thing and holds
-the rest.
+Change one skill → its hash, every dependent's hash, and the root `graphHash` move.
+`skills verify --frozen` fails closed: `0` ok, `2` drift, `3` missing lock, `1` error.
 
-- **Fixed: the graph.** The same skill nodes, the same edges, the same deterministic
-  screen.
-- **Variable: the model.** Swap the model under the graph. If behavior follows the
-  graph, it holds. If it follows the model, it moves.
+## The `skills` CLI (pinned `1.7.0` + a patch series)
 
-An **adapter** is transport between the harness and a model — here the Backboard SDK in
-front of a hosted open-weight provider. A transport must not change behavior: if the
-output moves when only the provider or model changes, something load-bearing sat outside
-the graph.
+The CLI is patched by a reviewable series (`patches/skills/*.patch`, applied by
+`scripts/apply-patches.mjs` on install):
 
-## Why this ecosystem exists
+```
+validate  ·  lint  ·  sync-deps  ·  lock  ·  verify
+graph (--mermaid|--dot|--json)  ·  lineage (--all|--reverse|--json)  ·  impact
+deps add|rm|list|sync  ·  caps add|rm
+```
 
-A skill is prose injected into a privileged agent. That makes behavior hard to hold
-still: models drift, capabilities arrive as loose text, context bloats, and nothing
-records which version ran. Skill infrastructure is the answer to that problem — pin
-versions, hash content, order installs, disclose on demand, evaluate against a
-baseline. The goal is one thing: **make agent behavior a controlled function of
-versioned inputs.**
+- `deps`/`caps` edit **both resources** in one step, reject cycles (restoring files), and
+  re-lock.
+- `lineage <a> <b>` prints an edge-typed path; `impact <node>` is reverse reachability —
+  the blast radius.
+- `add`/`sync` symlink local skills into `.agents/skills` (one entry point) while
+  `skills/` stays the source of truth.
 
-This experiment asks whether the graph delivers that on a small, strict case. Can an
-explicit graph carry a safety guarantee that does not move when the model moves?
+## The agent runtime
 
-## What would falsify it
+- **Role** — read from `AGENTS.md` (`FsRoleProvider`), not code. Edit the doc, the agent
+  changes.
+- **Harness** — DDD-lite Clean Architecture: `domain/` (ports + `AgentService` +
+  LangGraph `controller.ts`), `adapters/` (`backboard.agent`, `backboard.classifier`,
+  `fs.role`, `fs.skills`), `di/` (`bootstrap.ts` composition root + `tokens`), shared
+  `Container`. All dependencies point at ports.
+- **Controller** — a LangGraph `StateGraph`: `act → gate → (revise) act`, plus a shape
+  guard (`>1 question → refine`). The model writes content; the graph owns control flow.
+- **Gatekeeper** — System One / Jev (`typesafe`, `jev-latest`) judges the reply with typed
+  answers; a deterministic policy thresholds them (`allergy_safe < 0.5` → flagged).
+  `CLASSIFY=off|each|gate` (default `gate`: only acting turns, so interviews cost one call).
+- **Adapter** — Backboard SDK; provider/model via `LLM_PROVIDER` / `BACKBOARD_MODEL`.
+  Prompt-only today: the deterministic screen is *described*, not executed, so the
+  guarantee lives in the graph + CLI, not in the adapter.
 
-- The allergen screen returns a different outcome under different models.
-- The output changes when only the adapter changes, and nothing else.
-- A trivial request pulls the whole graph into context anyway.
-- The graph fails to resolve without a registry.
-- The decoupled screen cannot be reused by an unrelated consumer.
+## Client
 
-## Status
+React 18 + Material Tailwind + Tailwind 3, bundled with Bun (no Vite; Node 18). DI via the
+shared `Container` + React context; services behind ports (`PlanService` → HTTP adapter,
+`SpeechService` → Web Speech adapter). Push-to-talk (hold to talk, release to send;
+Firefox falls back to Send). Answers render as Markdown; TTS reads stripped plain text.
 
-The graph resolves, locks, and verifies, and the planner runs through the Backboard
-adapter. That adapter is prompt-only: it sends the context graph as a system prompt but
-does not execute local tools, so the deterministic screen is *described*, not *enforced*
-at runtime. That is the honest gap this experiment records — the guarantee lives in the
-skill graph and the CLI (lock/verify/lint), while delivery over a hosted adapter is where
-enforcement can leak. Swapping the model under a fixed graph is the next test.
+## Layout
+
+```
+src/server/   domain/ adapters/ di/  index.ts cli.ts config.ts skill.ts capabilities.ts
+src/client/   components/ di/ services/  App.tsx main.tsx ui.tsx
+src/shared/   container.ts types.ts
+skills/       the graph (12 local + manifest.json + SKILL.md)
+patches/skills/*.patch    the CLI series
+AGENTS.md     the agent's role (system prompt)
+```
 
 ## Run
 
 ```bash
-cp .env.example .env          # set BACKBOARD_API_KEY
-bun install
+cp .env.example .env          # set BACKBOARD_API_KEY (and CLASSIFY if you like)
+bun install                   # applies the patch series, links the agent store
 
-bun run plan "plan 4 dinners this week"   # flags: --provider, --model
-bun run dev                               # voice UI on http://localhost:8787
+bun run plan "plan 4 dinners this week"   # CLI (flags: --provider, --model, --thread)
+bun run dev                               # build client + serve http://localhost:8787
+bun test                                  # CLI integration tests
+bun run skills:lock && bun run skills:verify
 bun run skills:graph                      # render the dependency graph
-bun run skills:verify                     # verify the content-addressable lock
 ```
+
+## Hacktoberfest prize track
+
+| Prize | How this project competes | Where |
+|---|---|---|
+| **ElevenLabs** | Voice narration: `/api/tts` synthesizes the plan with ElevenLabs; the client plays it and falls back to the browser voice. | `src/server/adapters/elevenlabs.tts.ts`, `src/client/services/speech.service.ts` |
+| **Sentry Agent Tracing** | `gen_ai` spans around every model + classifier call, with latency; `/api/metrics` exposes runs/errors/last-call. | `src/server/telemetry.ts`, `src/server/adapters/instrumented.ts` |
+| **Gemma** | `MODEL_PRESET=gemma` serves Google's open-weight Gemma (`google/gemma-3-27b-it` via the openrouter provider). | `src/server/config.ts` |
+| **Entire / DevRelay** | Development session record + link. | `SESSION-LOG.md` |
+| **Render** | One service hosts the agent API **and** the React client. | `render.yaml` |
+
+```bash
+# prize-track env
+SENTRY_DSN=…              # tracing
+ELEVENLABS_API_KEY=…      # narration (/api/tts)
+MODEL_PRESET=gemma        # Gemma via provider
+```
+
+## Notes / frictions
+
+- Bun allows **one patch per `package@version`** → a multi-change patch became a reviewable
+  **series**; Bun hardlinks from its global cache, so the hook breaks the link before
+  applying.
+- `file:` refs mean different things to different tools (path vs bare name); we standardised
+  on **bare names** in frontmatter, `path`/`repo` in the manifest.
+- Lint’s checks are **pluggable hooks** (`skills.hooks.json`, pre-commit style) so
+  multi-language skill scripts are checked by per-language tools.

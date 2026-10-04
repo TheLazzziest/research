@@ -4,3 +4,6 @@ dist/
 *.log
 .agents/
 .hermes/
+
+# Local-only notes (kept off the repo)
+EVAL-STRATEGY.md

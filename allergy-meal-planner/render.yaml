@@ -1,0 +1,28 @@
+# Render blueprint — hosts the agent API and the React client in one service.
+# The Bun server serves the built client (dist/client) and the /api routes.
+services:
+  - type: web
+    name: allergy-meal-planner
+    runtime: bun
+    plan: free
+    buildCommand: bun install && bun run build:client
+    startCommand: bun run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: BACKBOARD_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: cerebras
+      - key: BACKBOARD_MODEL
+        value: openai/gpt-oss-120b
+      - key: CLASSIFY
+        value: gate
+      # Gemma via provider: set MODEL_PRESET=gemma to serve Google's open-weight Gemma.
+      - key: MODEL_PRESET
+        value: ""
+      - key: SENTRY_DSN
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        value: JBFqnCBsd6RMkjVDRZzb

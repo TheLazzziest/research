@@ -3,5 +3,6 @@ export const tokens = {
   skills: "skills",
   role: "role",
   classifier: "classifier",
+  tts: "tts",
   agentService: "agentService",
 } as const;

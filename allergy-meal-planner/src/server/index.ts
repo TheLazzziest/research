@@ -3,14 +3,19 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { config } from "./config.ts";
+import { agentConfig, config } from "./config.ts";
 import { createContainer } from "./di/bootstrap.ts";
 import { tokens } from "./di/tokens.ts";
 import type { AgentService } from "./domain/agent.service.ts";
+import type { TtsPort } from "./domain/ports.ts";
+import { initTelemetry, snapshotMetrics } from "./telemetry.ts";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const staticDir = path.join(root, "dist", "client");
-const service = createContainer(root).resolve<AgentService>(tokens.agentService);
+const container = createContainer(root);
+const service = container.resolve<AgentService>(tokens.agentService);
+const tts = container.resolve<TtsPort>(tokens.tts);
+const telemetry = await initTelemetry();
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -53,7 +58,33 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
     if (req.method === "GET" && url.pathname === "/api/health") {
-      return sendJson(res, 200, { ok: true, provider: config.provider, model: config.backboardModel });
+      const active = agentConfig();
+      return sendJson(res, 200, {
+        ok: true,
+        provider: active.provider,
+        model: active.model,
+        classify: config.classifyMode,
+        tracing: telemetry.tracing,
+        profiling: telemetry.profiling,
+        narration: Boolean(config.elevenLabsApiKey),
+      });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/metrics") {
+      return sendJson(res, 200, snapshotMetrics());
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/tts") {
+      const body = JSON.parse((await readBody(req)) || "{}") as { text?: unknown };
+      if (typeof body.text !== "string" || body.text.trim().length === 0) {
+        return sendJson(res, 400, { error: "text is required" });
+      }
+      if (!config.elevenLabsApiKey) {
+        return sendJson(res, 501, { error: "voice narration is not configured" });
+      }
+      const result = await tts.synthesize(body.text);
+      res.writeHead(200, { "content-type": result.contentType });
+      return res.end(Buffer.from(result.audio));
     }
 
     if (req.method === "POST" && url.pathname === "/api/plan") {
