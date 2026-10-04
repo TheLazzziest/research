@@ -1,0 +1,26 @@
+{
+  "name": "Maya",
+  "allergies": ["peanut", "tree nuts", "shellfish"],
+  "diet": "omnivore, quick weeknight meals",
+  "dislikes": ["cilantro", "blue cheese"],
+  "household": "2 adults, 1 toddler",
+  "pantry": [
+    "rice",
+    "pasta",
+    "eggs",
+    "olive oil",
+    "onions",
+    "garlic",
+    "carrots",
+    "canned tomatoes",
+    "chickpeas",
+    "spinach",
+    "chicken thighs",
+    "frozen peas",
+    "yogurt",
+    "lemons"
+  ],
+  "budget": "moderate, avoid specialty imports",
+  "time": "30 minutes max per meal",
+  "notes": "Cook once, eat twice. Prefers overlapping ingredients across the week."
+}

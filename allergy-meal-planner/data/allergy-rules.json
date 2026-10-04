@@ -1,0 +1,14 @@
+{
+  "peanut": ["peanut", "peanuts", "groundnut", "ground nuts", "arachis oil", "satay", "monkey nuts", "beer nuts"],
+  "tree nuts": ["almond", "cashew", "walnut", "pecan", "pistachio", "hazelnut", "macadamia", "brazil nut", "praline", "marzipan", "nutella", "chestnut", "pine nut"],
+  "milk": ["milk", "butter", "ghee", "cream", "cheese", "whey", "casein", "lactose", "yoghurt", "yogurt", "buttermilk", "custard"],
+  "egg": ["egg", "eggs", "albumin", "mayonnaise", "aioli", "meringue", "omelette"],
+  "soy": ["soy", "soya", "tofu", "edamame", "miso", "tempeh", "soy sauce", "tamari", "edamame"],
+  "wheat": ["wheat", "flour", "bread", "pasta", "semolina", "couscous", "seitan", "farro", "spelt", "barley", "rye", "breadcrumb", "panko"],
+  "shellfish": ["shrimp", "prawn", "crab", "lobster", "crayfish", "scallop", "clam", "mussel", "oyster", "squid", "octopus", "crustacean"],
+  "fish": ["fish", "salmon", "tuna", "cod", "anchovy", "anchovies", "sardine", "mackerel", "worcestershire", "fish sauce", "caesar"],
+  "sesame": ["sesame", "tahini", "halva", "benne", "sesame oil", "za'atar", "zaatar"],
+  "mustard": ["mustard", "dijon", "mustard seed", "mustard powder"],
+  "celery": ["celery", "celeriac", "celery salt", "celery seed"],
+  "sulphites": ["sulphite", "sulfite", "sulfur dioxide", "e220", "e221", "e222", "e223", "e224", "e228", "dried apricot"]
+}

@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Voice-driven allergy-safe meal planner built on open-weight models + an open-source agent harness. Built for a friend.",
+  "description": "Voice-driven allergy-safe meal planner. Behavior lives in a versioned skill graph; delivery runs on the Backboard adapter over open-weight models. Built for a friend.",
   "scripts": {
     "skills": "bun node_modules/skills/bin/cli.mjs",
-    "dev": "bun run src/server.ts",
-    "plan": "bun run src/cli.ts",
-    "plan:backboard": "bun run src/cli.ts --backboard",
+    "build:client": "bun build src/client/main.tsx --outdir dist/client --target browser --minify && tailwindcss -i src/client/index.css -o dist/client/index.css --minify && cp src/client/index.html dist/client/index.html",
+    "dev": "bun run build:client && bun run src/server/index.ts",
+    "start": "bun run src/server/index.ts",
+    "plan": "bun run src/server/cli.ts",
     "graph": "bun node_modules/skills/bin/cli.mjs graph --skills-dir skills",
     "skills:validate": "bun node_modules/skills/bin/cli.mjs validate --skills-dir skills",
     "skills:lint": "bun node_modules/skills/bin/cli.mjs lint skills",
@@ -20,17 +21,34 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
+  "overrides": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^1.0.0",
-    "ai": "^5.0.0",
+    "@heroicons/react": "^2.2.0",
+    "@langchain/core": "^1.2.14",
+    "@langchain/langgraph": "^1.4.19",
+    "@material-tailwind/react": "^2.1.10",
+    "agent-skills-ts-sdk": "^2.5.0",
     "backboard-sdk": "^1.5.19",
-    "js-yaml": "^4.1.0",
-    "zod": "^3.25.0"
+    "framer-motion": "^14.0.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.20",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.6.1",
+    "js-yaml": "^4.1.0",
+    "postcss": "^8.5.28",
     "skills": "^1.7.0",
+    "tailwindcss": "^3.4.0",
     "typescript": "^5.6.0"
   }
 }
