@@ -1,0 +1,72 @@
+From ddc4747bb6baba8948189b237563cd425fe87752 Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:38:36 +0300
+Subject: [PATCH] skills: 10-link
+
+---
+ dist/cli.mjs | 34 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index 4a3973e..ccd2272 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -8012,6 +8012,37 @@ async function runCaps(args) {
+ 	}
+ 	return fail(`unknown caps subcommand: ${sub}`);
+ }
++// --- P2: linking local skills into the canonical agent store, as part of add/sync ---
++// Symlink each local skill from `skills/` into the canonical agent skills dir, so
++// agents refer to one place while `skills/` stays the source of truth. Best-effort:
++// never fails the caller.
++function skillsDirFromArgs(args) {
++	const i = Array.isArray(args) ? args.indexOf("--skills-dir") : -1;
++	return i >= 0 && args[i + 1] ? args[i + 1] : "skills";
++}
++async function linkLocalSkills(skillsDir = "skills", target = join(".agents", "skills")) {
++	try {
++		const root = resolve(skillsDir);
++		if (!existsSync(root)) return;
++		const targetDir = resolve(target);
++		await mkdir(targetDir, { recursive: true });
++		const names = readdirSync(root, { withFileTypes: true })
++			.filter((e) => e.isDirectory() && existsSync(join(root, e.name, "SKILL.md")))
++			.map((e) => e.name);
++		let linked = 0;
++		for (const name of names) {
++			const linkPath = join(targetDir, name);
++			try {
++				const st = await lstat(linkPath);
++				if (st.isSymbolicLink()) await rm(linkPath);
++				else if (st.isDirectory()) continue;
++			} catch {}
++			await symlink(relative(targetDir, join(root, name)), linkPath, "dir");
++			linked++;
++		}
++		if (linked > 0) console.log(`${import_picocolors.default.green("✓")} linked ${linked} local skill(s) into ${relative(process.cwd(), targetDir)}`);
++	} catch {}
++}
+ async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+@@ -9646,6 +9677,7 @@ async function main() {
+ 				break;
+ 			}
+ 			await runAdd(addSource, addOpts);
++			await linkLocalSkills(skillsDirFromArgs(restArgs), join(".agents", "skills"));
+ 			break;
+ 		}
+ 		case "use": {
+@@ -9665,10 +9697,12 @@ async function main() {
+ 			if (!inAgent) showLogo();
+ 			const { options: syncOptions } = parseSyncOptions(restArgs);
+ 			await runSync(restArgs, syncOptions);
++			await linkLocalSkills(skillsDirFromArgs(restArgs), join(".agents", "skills"));
+ 			break;
+ 		}
+ 		case "sync-deps":
+ 			await runSyncExternal(restArgs);
++			await linkLocalSkills(skillsDirFromArgs(restArgs), join(".agents", "skills"));
+ 			break;
+ 		case "validate":
+ 		case "validate-skill-deps":
