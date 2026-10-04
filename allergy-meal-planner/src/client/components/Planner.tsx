@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Button, Switch, Typography } from "../ui.tsx";
+import { Alert, Button, Spinner, Switch, Typography } from "../ui.tsx";
 import { useService } from "../di/context.tsx";
 import { tokens } from "../di/tokens.ts";
 import type { PlanService } from "../services/plan.service.ts";
@@ -61,6 +61,7 @@ export function Planner() {
         <PushToTalk
           text={text}
           disabled={busy}
+          busy={busy}
           onText={setText}
           onSubmit={(finalText) => submit(finalText)}
           onStatus={setStatus}
@@ -76,9 +77,16 @@ export function Planner() {
             New consultation
           </Button>
         ) : null}
-        <Typography variant="small" className="ml-auto font-normal text-blue-gray-500">
-          {status}
-        </Typography>
+        {busy ? (
+          <span className="ml-auto inline-flex items-center gap-2 text-sm text-blue-gray-500" role="status" aria-live="polite">
+            <Spinner className="h-4 w-4" />
+            {"preparing\u2026"}
+          </span>
+        ) : (
+          <Typography variant="small" className="ml-auto font-normal text-blue-gray-500">
+            {status}
+          </Typography>
+        )}
       </div>
       {error ? (
         <Alert open color="red" onClose={() => setError(null)}>

@@ -77,7 +77,8 @@ export class BrowserSpeechService implements SpeechService {
     const recognition = new Recognition();
     recognition.lang = "en-US";
     recognition.interimResults = true;
-    recognition.continuous = false;
+    // Keep listening until the caller stops it (push-to-talk holds through pauses).
+    recognition.continuous = true;
     recognition.onresult = (event) => {
       let finalText = "";
       let interim = "";
@@ -95,8 +96,27 @@ export class BrowserSpeechService implements SpeechService {
     return { stop: () => recognition.stop() };
   }
 
+  // Prefer server-side narration (ElevenLabs); fall back to the browser voice.
   speak(text: string): void {
-    if (!this.synth || !text) return;
+    if (!text) return;
+    void this.speakRemote(text).catch(() => this.speakLocal(text));
+  }
+
+  private async speakRemote(text: string): Promise<void> {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(`tts ${res.status}`);
+    const url = URL.createObjectURL(await res.blob());
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    await audio.play();
+  }
+
+  private speakLocal(text: string): void {
+    if (!this.synth) return;
     this.synth.cancel();
     for (const part of this.chunk(text)) {
       const utterance = new SpeechSynthesisUtterance(part);
