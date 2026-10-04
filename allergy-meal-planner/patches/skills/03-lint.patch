@@ -1,0 +1,78 @@
+From 85287dd0f8ca9fa7f8f2c6ece2ad4770a1b3cdee Mon Sep 17 00:00:00 2001
+From: gen <gen@local>
+Date: Sun, 4 Oct 2026 20:03:04 +0300
+Subject: [PATCH 4/5] skills: 03-lint
+
+---
+ dist/cli.mjs | 44 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 44 insertions(+)
+
+diff --git a/dist/cli.mjs b/dist/cli.mjs
+index 1be7fca..d2ab295 100755
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -6876,6 +6876,45 @@ async function runValidate(args) {
+ 	}
+ 	console.log(`OK: ${target.length} skill(s), dependencies valid`);
+ }
++async function runLint(args = []) {
++	const target = args[0] ?? "skills";
++	const root = resolve(target);
++	if (!existsSync(root)) {
++		console.log(`${import_picocolors.default.red("✗")} Lint root not found: ${root}`);
++		process.exitCode = 1;
++		return;
++	}
++	let entries;
++	try {
++		entries = readdirSync(root, { withFileTypes: true });
++	} catch (err) {
++		console.log(`${import_picocolors.default.red("✗")} Cannot read ${root}: ${err.message}`);
++		process.exitCode = 1;
++		return;
++	}
++	let checked = 0, passed = 0, failed = 0;
++	for (const entry of entries) {
++		if (!entry.isDirectory()) continue;
++		const skillDir = join(root, entry.name);
++		const skillMd = join(skillDir, "SKILL.md");
++		if (!existsSync(skillMd)) continue;
++		checked++;
++		const ok = await isValidSkillMarkdown(skillMd);
++		if (ok) {
++			passed++;
++			console.log(`${import_picocolors.default.green("✓")} ${entry.name}`);
++		} else {
++			failed++;
++			console.log(`${import_picocolors.default.red("✗")} ${entry.name} (invalid frontmatter)`);
++		}
++	}
++	if (checked === 0) {
++		console.log(`${import_picocolors.default.dim("No skills found")} in ${root}`);
++		return;
++	}
++	console.log(`\n${checked} skill(s): ${import_picocolors.default.green(String(passed))} ok, ${failed > 0 ? import_picocolors.default.red(String(failed)) : String(failed)} invalid`);
++	if (failed > 0) process.exitCode = 1;
++}
+ async function removeCommand(skillNames, options) {
+ 	const agentResult = await detectAgent();
+ 	if (agentResult.isAgent) {
+@@ -8308,6 +8347,7 @@ ${BOLD}Update Options:${RESET}
+ 
+ ${BOLD}Project:${RESET}
+   experimental_install Restore skills from skills-lock.json
++  lint [dir]           Validate SKILL.md frontmatter in a directory (default: skills)
+   validate             Validate skill dep graph (scheme, file: existence, cycles)
+   init [name]          Initialize a skill (creates <name>/SKILL.md or ./SKILL.md)
+   experimental_sync    Sync skills from node_modules into agent directories
+@@ -8525,6 +8565,10 @@ async function main() {
+ 		case "validate-skill-deps":
+ 			await runValidate(restArgs);
+ 			break;
++		case "lint":
++		case "check-skill":
++			await runLint(restArgs);
++			break;
+ 		case "list":
+ 		case "ls":
+ 			await runList(restArgs);
