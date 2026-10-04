@@ -163,11 +163,17 @@ describe("mutation commands (fixture)", () => {
     expect(r.out).toContain("synced 0");
   });
 
-  test("sync-deps links local skills into the agent store", () => {
-    const r = skill(["sync-deps", "--skills-dir", fixture], fixture);
-    expect(r.code).toBe(0);
-    const link = path.join(fixture, ".agents", "skills", "a");
-    expect(existsSync(link)).toBe(true);
-    expect(lstatSync(link).isSymbolicLink()).toBe(true);
-  });
+  test(
+    "sync-deps links local skills into the agent store",
+    () => {
+      // Drop the git dep added by the remote-ref test so sync-deps stays offline.
+      skill(["deps", "rm", "a", "grilling", "--skills-dir", fixture]);
+      const r = skill(["sync-deps", "--skills-dir", fixture], fixture);
+      expect(r.code).toBe(0);
+      const link = path.join(fixture, ".agents", "skills", "a");
+      expect(existsSync(link)).toBe(true);
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    },
+    20_000,
+  );
 });
